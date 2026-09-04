@@ -22,56 +22,84 @@ export async function handleAgentChat(req, res) {
     if (geminiKey && geminiKey !== 'your_key_here') {
       const genAI = new GoogleGenerativeAI(geminiKey);
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         systemInstruction: SYSTEM_PROMPT,
         tools: [{ functionDeclarations: toolDefinitions }]
       });
 
-      const chat = model.startChat({
-        history: history
-          .filter(h => h.sender && h.text)
-          .map(h => ({
+      const contents = [];
+      for (const h of history) {
+        if (h.sender && h.text) {
+          contents.push({
             role: h.sender === 'user' ? 'user' : 'model',
             parts: [{ text: h.text }]
-          }))
+          });
+        }
+      }
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
       });
 
-      let response = await chat.sendMessage(message);
-      let functionCalls = response.response.functionCalls();
-
       let turns = 0;
-      while (functionCalls && functionCalls.length > 0 && turns < 6) {
-        turns++;
-        const functionResponses = [];
+      let finalResponseText = '';
 
+      while (turns < 6) {
+        turns++;
+        const result = await model.generateContent({ contents });
+        const candidate = result.response.candidates?.[0];
+        if (!candidate) break;
+
+        const modelParts = candidate.content?.parts || [];
+        const functionCalls = result.response.functionCalls();
+
+        if (!functionCalls || functionCalls.length === 0) {
+          finalResponseText = result.response.text();
+          break;
+        }
+
+        // Preserve model response parts (including thought_signature & function calls)
+        contents.push({
+          role: 'model',
+          parts: modelParts
+        });
+
+        // Execute all function calls against live database
+        const fnResponseParts = [];
         for (const call of functionCalls) {
           const executor = toolExecutors[call.name];
-          let result = { error: 'Tool not found' };
+          let output = { error: 'Tool not found' };
           if (executor) {
-            result = await executor(call.args);
+            output = await executor(call.args);
           }
           toolCallLogs.push({
             tool: call.name,
             args: call.args,
-            result
+            result: output
           });
 
-          functionResponses.push({
+          fnResponseParts.push({
             functionResponse: {
               name: call.name,
-              response: { output: result }
+              response: { output },
+              id: call.id
             }
           });
         }
 
-        response = await chat.sendMessage(functionResponses);
-        functionCalls = response.response.functionCalls();
+        // Return function response parts with role 'user'
+        contents.push({
+          role: 'user',
+          parts: fnResponseParts
+        });
       }
 
-      return res.json({
-        text: response.response.text(),
-        toolCalls: toolCallLogs
-      });
+      if (finalResponseText) {
+        return res.json({
+          text: finalResponseText,
+          toolCalls: toolCallLogs
+        });
+      }
     }
 
     // 2. Try OpenAI or Groq
@@ -186,6 +214,12 @@ async function runSemanticToolCallingAgent(query) {
     logs.push({ tool: 'get_announcements', args: { priority: 'high' }, result: announcements });
 
     const firstClass = schedules[0];
+    if (!firstClass) {
+      return {
+        text: "You do not have any classes scheduled for Sunday in the live timetable.",
+        toolCalls: logs
+      };
+    }
     const rescheduleNotice = announcements.find(a => a.body?.includes(firstClass?.course) || a.title?.includes(firstClass?.course));
 
     let reply = `Today is Friday afternoon (weekend). Your next class is on **Sunday at ${firstClass.start_time}**: **${firstClass.course}** (${firstClass.title}) in **Room ${firstClass.room}** with ${firstClass.instructor}.`;

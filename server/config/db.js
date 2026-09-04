@@ -226,7 +226,6 @@ export async function connectDB() {
       if (count === 0) {
         await seedMongo();
       }
-      return;
     } catch (err) {
       console.warn('[DB] MongoDB connection failed:', err.message);
       console.log('[DB] Gracefully falling back to Persistent File Store.');
