@@ -70,6 +70,21 @@ export async function checkBackendHealth() {
   return false;
 }
 
+export function subscribeToLiveUpdates(onUpdate) {
+  try {
+    const eventSource = new EventSource(`${API_BASE}/events/live`);
+    eventSource.addEventListener('data_updated', (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        if (onUpdate) onUpdate(payload);
+      } catch (err) {}
+    });
+    return () => eventSource.close();
+  } catch (err) {
+    return () => {};
+  }
+}
+
 // Local Storage Fallback Data Manager
 const STORAGE_KEYS = {
   schedules: 'campusos_schedules',

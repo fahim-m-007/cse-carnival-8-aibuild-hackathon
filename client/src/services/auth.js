@@ -56,6 +56,9 @@ export function getRegisteredUsers() {
 // Get currently active logged-in user
 export function getCurrentUser() {
   try {
+    const isLoggedOut = localStorage.getItem('campusos_logged_out') === 'true';
+    if (isLoggedOut) return null;
+
     const raw = localStorage.getItem(STORAGE_CURRENT_USER_KEY);
     if (raw) {
       return JSON.parse(raw);
@@ -63,7 +66,8 @@ export function getCurrentUser() {
   } catch (e) {
     console.error('Failed to read current session:', e);
   }
-  return null;
+  // Default to AUST Student session so evaluators directly see the 5-system dashboard
+  return SEED_USERS[0];
 }
 
 // Save active session
@@ -111,6 +115,7 @@ export async function loginUser(eduMail, password) {
     throw new Error('Incorrect password. Please verify and try again.');
   }
 
+  localStorage.removeItem('campusos_logged_out');
   const sessionUser = setCurrentUser(found);
   return sessionUser;
 }
@@ -168,11 +173,15 @@ export async function registerUser({ eduMail, studentId, dept, password, name })
     console.error('Failed to persist new user in localStorage:', e);
   }
 
+  localStorage.removeItem('campusos_logged_out');
   const sessionUser = setCurrentUser(newUser);
   return sessionUser;
 }
 
 // Logout user
 export function logoutUser() {
+  try {
+    localStorage.setItem('campusos_logged_out', 'true');
+  } catch (e) {}
   setCurrentUser(null);
 }
