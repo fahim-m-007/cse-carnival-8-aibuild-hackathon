@@ -16,7 +16,7 @@ import {
   fetchEvents, createEvent, updateEvent, deleteEvent, registerForEvent, cancelEventRegistration,
   fetchAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   fetchAssignments, createAssignment, updateAssignment, deleteAssignment,
-  resetAllData
+  resetAllData, subscribeToLiveUpdates
 } from './services/api';
 import './App.css';
 import { Bot } from 'lucide-react';
@@ -65,6 +65,10 @@ export default function App() {
 
   useEffect(() => {
     loadAllData();
+    const unsubscribe = subscribeToLiveUpdates(() => {
+      loadAllData();
+    });
+    return () => unsubscribe();
   }, [loadAllData]);
 
   // Handle Add/Edit Open
