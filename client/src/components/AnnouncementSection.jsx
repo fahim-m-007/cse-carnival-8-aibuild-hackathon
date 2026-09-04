@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Search, AlertCircle, Calendar, User, Edit2, Trash2, ShieldAlert } from 'lucide-react';
+import { isItemOwner, formatToYYYYMMDD } from '../services/api';
 import './SectionCommon.css';
 
 export default function AnnouncementSection({
   announcements,
   onEdit,
-  onDelete
+  onDelete,
+  currentUser = null
 }) {
   const [selectedPriority, setSelectedPriority] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +53,7 @@ export default function AnnouncementSection({
         {filtered.map((ann) => {
           const isHigh = ann.priority === 'high';
           const isMedium = ann.priority === 'medium';
+          const isOwner = isItemOwner(ann, currentUser);
 
           return (
             <div
@@ -67,21 +70,28 @@ export default function AnnouncementSection({
             >
               <div>
                 <div className="card-header">
-                  <span
-                    className={`badge ${
-                      isHigh
-                        ? 'badge-red'
-                        : isMedium
-                        ? 'badge-gold'
-                        : 'badge-green'
-                    }`}
-                  >
-                    {isHigh && <ShieldAlert size={12} />}
-                    {ann.priority} Priority
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <span
+                      className={`badge ${
+                        isHigh
+                          ? 'badge-red'
+                          : isMedium
+                          ? 'badge-gold'
+                          : 'badge-green'
+                      }`}
+                    >
+                      {isHigh && <ShieldAlert size={12} />}
+                      {ann.priority} Priority
+                    </span>
+                    {isOwner && (
+                      <span className="badge badge-green" style={{ fontSize: '0.68rem' }}>
+                        Added by You
+                      </span>
+                    )}
+                  </div>
 
                   <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Posted {ann.date}
+                    Posted {formatToYYYYMMDD(ann.date)}
                   </span>
                 </div>
 
@@ -104,32 +114,34 @@ export default function AnnouncementSection({
                     {ann.expires && (
                       <div className="card-meta-row">
                         <Calendar size={14} />
-                        <span>Expires: <strong>{ann.expires}</strong></span>
+                        <span>Expires: <strong>{formatToYYYYMMDD(ann.expires)}</strong></span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="card-actions">
-                <button
-                  className="btn-card-action"
-                  onClick={() => onEdit('announcements', ann)}
-                  title="Edit notice"
-                >
-                  <Edit2 size={13} />
-                  <span>Edit</span>
-                </button>
+              {isOwner && (
+                <div className="card-actions">
+                  <button
+                    className="btn-card-action"
+                    onClick={() => onEdit('announcements', ann)}
+                    title="Edit notice"
+                  >
+                    <Edit2 size={13} />
+                    <span>Edit</span>
+                  </button>
 
-                <button
-                  className="btn-card-action danger"
-                  onClick={() => onDelete('announcements', ann.id, ann.title)}
-                  title="Remove notice"
-                >
-                  <Trash2 size={13} />
-                  <span>Delete</span>
-                </button>
-              </div>
+                  <button
+                    className="btn-card-action danger"
+                    onClick={() => onDelete('announcements', ann.id, ann.title)}
+                    title="Remove notice"
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

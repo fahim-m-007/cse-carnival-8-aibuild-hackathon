@@ -95,10 +95,12 @@ input, select, textarea {
   font-size: 0.92rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-medium);
-  padding: 0.55rem 0.8rem;
+  padding: 0.6rem 0.85rem;
   outline: none;
   background: #FFFFFF;
   color: var(--text-title);
+  box-sizing: border-box;
+  width: 100%;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 

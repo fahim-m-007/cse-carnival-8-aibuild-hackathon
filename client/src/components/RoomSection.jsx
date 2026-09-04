@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Users, Wrench, Calendar, PlusCircle, Trash2, Edit2, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Users, Wrench, Calendar, PlusCircle, Trash2, Edit2, CheckCircle, XCircle, DoorOpen } from 'lucide-react';
+import { isItemOwner, formatToYYYYMMDD } from '../services/api';
 import './SectionCommon.css';
 
 export default function RoomSection({
@@ -7,7 +8,8 @@ export default function RoomSection({
   onEdit,
   onDelete,
   onOpenBookModal,
-  onCancelBooking
+  onCancelBooking,
+  currentUser = null
 }) {
   const [selectedType, setSelectedType] = useState('All');
   const [selectedEquipment, setSelectedEquipment] = useState('All');
@@ -72,24 +74,31 @@ export default function RoomSection({
         {filtered.map((room) => {
           const bookings = room.bookings || [];
           const isAvailable = room.status === 'available';
+          const isOwner = isItemOwner(room, currentUser);
 
           return (
             <div key={room.id} className="item-card">
               <div>
                 <div className="card-header">
                   <div>
-                    <span
-                      className={`badge ${
-                        room.type === 'lab'
-                          ? 'badge-blue'
-                          : room.type === 'seminar'
-                          ? 'badge-purple'
-                          : 'badge-green'
-                      }`}
-                      style={{ marginBottom: '0.35rem' }}
-                    >
-                      {room.type}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                      <span
+                        className={`badge ${
+                          room.type === 'lab'
+                            ? 'badge-blue'
+                            : room.type === 'seminar'
+                            ? 'badge-purple'
+                            : 'badge-green'
+                        }`}
+                      >
+                        {room.type}
+                      </span>
+                      {isOwner && (
+                        <span className="badge badge-green" style={{ fontSize: '0.68rem' }}>
+                          Added by You
+                        </span>
+                      )}
+                    </div>
                     <h3 className="card-title" style={{ fontSize: '1.25rem' }}>
                       Room {room.room_number}
                     </h3>
@@ -132,34 +141,52 @@ export default function RoomSection({
                         No active bookings.
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '90px', overflowY: 'auto' }}>
-                        {bookings.map((b) => (
-                          <div
-                            key={b.booking_id}
-                            style={{
-                              fontSize: '0.76rem',
-                              background: '#F8FAFC',
-                              padding: '0.35rem 0.5rem',
-                              borderRadius: 'var(--radius-sm)',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              border: '1px solid var(--border-subtle)'
-                            }}
-                          >
-                            <div>
-                              <strong>{b.date}</strong> ({b.start_time}–{b.end_time})
-                              <div style={{ color: 'var(--text-muted)' }}>{b.booked_by} · {b.purpose}</div>
-                            </div>
-                            <button
-                              onClick={() => onCancelBooking(room.id, b.booking_id)}
-                              style={{ color: 'var(--aust-red)', padding: '2px', marginLeft: '6px' }}
-                              title="Cancel this booking"
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '110px', overflowY: 'auto' }}>
+                        {bookings.map((b) => {
+                          const currentStudentId = (currentUser?.studentId || '').trim().toLowerCase();
+                          const currentName = (currentUser?.name || '').trim().toLowerCase();
+                          const isMyBooking =
+                            currentUser &&
+                            ((b.booked_by_id && b.booked_by_id.trim().toLowerCase() === currentStudentId) ||
+                              (b.booked_by && b.booked_by.trim().toLowerCase() === currentName));
+
+                          return (
+                            <div
+                              key={b.booking_id}
+                              style={{
+                                fontSize: '0.76rem',
+                                background: '#F8FAFC',
+                                padding: '0.35rem 0.5rem',
+                                borderRadius: 'var(--radius-sm)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                border: '1px solid var(--border-subtle)'
+                              }}
                             >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        ))}
+                              <div>
+                                <strong>{formatToYYYYMMDD(b.date)}</strong> ({b.start_time}–{b.end_time})
+                                <div style={{ color: 'var(--text-muted)' }}>
+                                  {b.booked_by}
+                                  {isMyBooking && (
+                                    <span className="badge badge-green" style={{ fontSize: '0.62rem', padding: '0 4px', marginLeft: '4px' }}>
+                                      You
+                                    </span>
+                                  )} · {b.purpose}
+                                </div>
+                              </div>
+                              {isMyBooking && (
+                                <button
+                                  onClick={() => onCancelBooking(room.id, b.booking_id)}
+                                  style={{ color: 'var(--aust-red)', padding: '2px', marginLeft: '6px' }}
+                                  title="Cancel your booking"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -176,23 +203,27 @@ export default function RoomSection({
                   <span>Book Room</span>
                 </button>
 
-                <button
-                  className="btn-card-action"
-                  onClick={() => onEdit('rooms', room)}
-                  title="Edit room"
-                >
-                  <Edit2 size={13} />
-                  <span>Edit</span>
-                </button>
+                {isOwner && (
+                  <>
+                    <button
+                      className="btn-card-action"
+                      onClick={() => onEdit('rooms', room)}
+                      title="Edit this room"
+                    >
+                      <Edit2 size={13} />
+                      <span>Edit</span>
+                    </button>
 
-                <button
-                  className="btn-card-action danger"
-                  onClick={() => onDelete('rooms', room.id, `Room ${room.room_number}`)}
-                  title="Delete room"
-                >
-                  <Trash2 size={13} />
-                  <span>Delete</span>
-                </button>
+                    <button
+                      className="btn-card-action danger"
+                      onClick={() => onDelete('rooms', room.id, `Room ${room.room_number}`)}
+                      title="Delete this room"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           );

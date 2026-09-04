@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
+import { getNextEventId, formatToYYYYMMDD } from '../services/api';
+import DateInput from './DateInput';
 import './Modal.css';
 
 export default function Modal({
@@ -7,7 +9,8 @@ export default function Modal({
   onClose,
   onSubmit,
   type, // 'schedules' | 'rooms' | 'events' | 'announcements' | 'assignments' | 'bookRoom' | 'registerEvent'
-  initialData = null
+  initialData = null,
+  currentUser = null
 }) {
   const [formData, setFormData] = useState({});
 
@@ -15,6 +18,7 @@ export default function Modal({
     if (initialData) {
       setFormData({ ...initialData });
     } else {
+      const today = formatToYYYYMMDD(new Date()) || '2026-09-04';
       // Default empty templates
       if (type === 'schedules') {
         setFormData({
@@ -24,7 +28,7 @@ export default function Modal({
           start_time: '08:00',
           end_time: '08:50',
           room: '7A01',
-          instructor: '',
+          instructor: currentUser?.name || '',
           section: 'A'
         });
       } else if (type === 'rooms') {
@@ -38,14 +42,15 @@ export default function Modal({
         });
       } else if (type === 'events') {
         setFormData({
+          id: getNextEventId(),
           name: '',
           description: '',
-          date: '2026-09-08',
+          date: today,
           start_time: '14:00',
           end_time: '16:00',
-          end_date: '2026-09-08',
+          end_date: today,
           venue: '7C01',
-          organizer: 'CSE Department',
+          organizer: currentUser?.name ? `${currentUser.name} (${currentUser.dept || 'CSE'})` : 'CSE Department',
           capacity: 50,
           status: 'upcoming'
         });
@@ -54,8 +59,9 @@ export default function Modal({
           title: '',
           body: '',
           priority: 'high',
-          posted_by: 'CSE Department',
-          expires: '2026-09-10'
+          posted_by: currentUser?.name ? `${currentUser.name} (${currentUser.dept || 'CSE'})` : 'CSE Department',
+          date: today,
+          expires: ''
         });
       } else if (type === 'assignments') {
         setFormData({
@@ -63,7 +69,7 @@ export default function Modal({
           course_title: 'Pattern Recognition and Machine Learning',
           title: '',
           description: '',
-          assigned_date: '2026-09-04',
+          assigned_date: today,
           deadline: '2026-09-12',
           submission_platform: 'Google Classroom',
           status: 'pending',
@@ -71,20 +77,20 @@ export default function Modal({
         });
       } else if (type === 'bookRoom') {
         setFormData({
-          date: '2026-09-05',
+          date: today,
           start_time: '15:00',
           end_time: '17:00',
-          booked_by: '',
+          booked_by: currentUser?.name || '',
           purpose: 'Group Study Session'
         });
       } else if (type === 'registerEvent') {
         setFormData({
-          student_id: '',
-          name: ''
+          student_id: currentUser?.studentId || '',
+          name: currentUser?.name || ''
         });
       }
     }
-  }, [type, initialData, isOpen]);
+  }, [type, initialData, isOpen, currentUser]);
 
   if (!isOpen) return null;
 
@@ -106,6 +112,14 @@ export default function Modal({
         .filter(Boolean);
       delete finalData.equipmentStr;
     }
+
+    // Ensure all date fields strictly adhere to YYYY-MM-DD
+    if (finalData.date) finalData.date = formatToYYYYMMDD(finalData.date);
+    if (finalData.end_date) finalData.end_date = formatToYYYYMMDD(finalData.end_date);
+    if (finalData.deadline) finalData.deadline = formatToYYYYMMDD(finalData.deadline);
+    if (finalData.assigned_date) finalData.assigned_date = formatToYYYYMMDD(finalData.assigned_date);
+    if (finalData.expires) finalData.expires = formatToYYYYMMDD(finalData.expires);
+
     onSubmit(finalData);
   };
 
@@ -305,15 +319,31 @@ export default function Modal({
             {/* 3. EVENT FORM */}
             {type === 'events' && (
               <>
-                <div className="form-group">
-                  <label>Event Name</label>
-                  <input
-                    name="name"
-                    required
-                    placeholder="e.g. Workshop on Generative AI"
-                    value={formData.name || ''}
-                    onChange={handleChange}
-                  />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Event ID</label>
+                    <input
+                      name="id"
+                      required
+                      placeholder="e.g. evt-006"
+                      value={formData.id || ''}
+                      onChange={handleChange}
+                      readOnly={Boolean(initialData?.id)}
+                    />
+                    <span className="form-helper">
+                      {initialData?.id ? 'Stable unique event identifier' : 'Auto-generated ID (can be customized if unique)'}
+                    </span>
+                  </div>
+                  <div className="form-group">
+                    <label>Event Name</label>
+                    <input
+                      name="name"
+                      required
+                      placeholder="e.g. Workshop on Generative AI"
+                      value={formData.name || ''}
+                      onChange={handleChange}
+                    />
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -330,22 +360,27 @@ export default function Modal({
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Date (YYYY-MM-DD)</label>
-                    <input
+                    <label>Start Date (YYYY-MM-DD)</label>
+                    <DateInput
                       name="date"
-                      type="date"
                       required
                       value={formData.date || ''}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setFormData((prev) => ({
+                          ...prev,
+                          date: newDate,
+                          end_date: (!prev.end_date || prev.end_date === prev.date) ? newDate : prev.end_date
+                        }));
+                      }}
                     />
                   </div>
                   <div className="form-group">
-                    <label>Venue Room</label>
-                    <input
-                      name="venue"
+                    <label>End Date (YYYY-MM-DD)</label>
+                    <DateInput
+                      name="end_date"
                       required
-                      placeholder="e.g. 7C01"
-                      value={formData.venue || ''}
+                      value={formData.end_date || formData.date || ''}
                       onChange={handleChange}
                     />
                   </div>
@@ -353,7 +388,7 @@ export default function Modal({
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Start Time</label>
+                    <label>Start Time (24h)</label>
                     <input
                       name="start_time"
                       type="time"
@@ -363,7 +398,7 @@ export default function Modal({
                     />
                   </div>
                   <div className="form-group">
-                    <label>End Time</label>
+                    <label>End Time (24h)</label>
                     <input
                       name="end_time"
                       type="time"
@@ -376,15 +411,29 @@ export default function Modal({
 
                 <div className="form-row">
                   <div className="form-group">
+                    <label>Venue Room</label>
+                    <input
+                      name="venue"
+                      required
+                      placeholder="e.g. 7C01"
+                      value={formData.venue || ''}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="form-group">
                     <label>Capacity</label>
                     <input
                       name="capacity"
                       type="number"
+                      min="1"
                       required
                       value={formData.capacity || 50}
                       onChange={handleChange}
                     />
                   </div>
+                </div>
+
+                <div className="form-row">
                   <div className="form-group">
                     <label>Organizer</label>
                     <input
@@ -393,6 +442,19 @@ export default function Modal({
                       value={formData.organizer || ''}
                       onChange={handleChange}
                     />
+                  </div>
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select
+                      name="status"
+                      value={formData.status || 'upcoming'}
+                      onChange={handleChange}
+                    >
+                      <option value="upcoming">Upcoming</option>
+                      <option value="ongoing">Ongoing</option>
+                      <option value="completed">Completed</option>
+                      <option value="full">Full</option>
+                    </select>
                   </div>
                 </div>
               </>
@@ -448,14 +510,24 @@ export default function Modal({
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Expiry Date</label>
-                  <input
-                    name="expires"
-                    type="date"
-                    value={formData.expires || ''}
-                    onChange={handleChange}
-                  />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Posted Date (YYYY-MM-DD)</label>
+                    <DateInput
+                      name="date"
+                      required
+                      value={formData.date || ''}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Expiry Date (YYYY-MM-DD)</label>
+                    <DateInput
+                      name="expires"
+                      value={formData.expires || ''}
+                      onChange={handleChange}
+                    />
+                  </div>
                 </div>
               </>
             )}
@@ -513,15 +585,25 @@ export default function Modal({
 
                 <div className="form-row">
                   <div className="form-group">
+                    <label>Assigned Date (YYYY-MM-DD)</label>
+                    <DateInput
+                      name="assigned_date"
+                      value={formData.assigned_date || ''}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="form-group">
                     <label>Deadline (YYYY-MM-DD)</label>
-                    <input
+                    <DateInput
                       name="deadline"
-                      type="date"
                       required
                       value={formData.deadline || ''}
                       onChange={handleChange}
                     />
                   </div>
+                </div>
+
+                <div className="form-row">
                   <div className="form-group">
                     <label>Total Marks</label>
                     <input
@@ -531,16 +613,15 @@ export default function Modal({
                       onChange={handleChange}
                     />
                   </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Submission Platform</label>
-                  <input
-                    name="submission_platform"
-                    placeholder="e.g. Google Classroom or Physical"
-                    value={formData.submission_platform || 'Google Classroom'}
-                    onChange={handleChange}
-                  />
+                  <div className="form-group">
+                    <label>Submission Platform</label>
+                    <input
+                      name="submission_platform"
+                      placeholder="e.g. Google Classroom or Physical"
+                      value={formData.submission_platform || 'Google Classroom'}
+                      onChange={handleChange}
+                    />
+                  </div>
                 </div>
               </>
             )}
@@ -550,9 +631,8 @@ export default function Modal({
               <>
                 <div className="form-group">
                   <label>Date (YYYY-MM-DD)</label>
-                  <input
+                  <DateInput
                     name="date"
-                    type="date"
                     required
                     value={formData.date || '2026-09-05'}
                     onChange={handleChange}
@@ -609,15 +689,28 @@ export default function Modal({
             {/* 7. REGISTER FOR EVENT FORM */}
             {type === 'registerEvent' && (
               <>
+                <div style={{
+                  background: 'var(--aust-green-light)',
+                  border: '1px solid var(--aust-green-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.75rem 1rem',
+                  fontSize: '0.85rem',
+                  color: 'var(--aust-green-dark)',
+                  lineHeight: '1.4'
+                }}>
+                  Registering your student account for <strong>"{initialData?.name || 'Event'}"</strong>.
+                </div>
+
                 <div className="form-group">
                   <label>Student ID</label>
                   <input
                     name="student_id"
                     required
-                    placeholder="e.g. 21-44567"
+                    readOnly
                     value={formData.student_id || ''}
                     onChange={handleChange}
                   />
+                  <span className="form-helper">Your verified institutional Student ID</span>
                 </div>
 
                 <div className="form-group">
@@ -625,10 +718,11 @@ export default function Modal({
                   <input
                     name="name"
                     required
-                    placeholder="e.g. Fahim Morshed"
+                    readOnly
                     value={formData.name || ''}
                     onChange={handleChange}
                   />
+                  <span className="form-helper">Your registered student name</span>
                 </div>
               </>
             )}

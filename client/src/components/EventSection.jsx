@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Calendar, Clock, MapPin, UserCheck, Trash2, Edit2, UserPlus, Users } from 'lucide-react';
+import { Search, Calendar, Clock, MapPin, UserCheck, Trash2, Edit2, UserPlus, Users, PartyPopper } from 'lucide-react';
+import { isItemOwner, formatToYYYYMMDD } from '../services/api';
 import './SectionCommon.css';
 
 export default function EventSection({
@@ -7,7 +8,8 @@ export default function EventSection({
   onEdit,
   onDelete,
   onOpenRegisterModal,
-  onCancelRegistration
+  onCancelRegistration,
+  currentUser = null
 }) {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +60,10 @@ export default function EventSection({
           const percentage = Math.min(100, Math.round((registeredCount / capacity) * 100));
           const isFull = registeredCount >= capacity || ev.status === 'full';
           const isExpanded = expandedEventId === ev.id;
+          const isOwner = isItemOwner(ev, currentUser);
+          const isUserRegistered = ev.registrations?.some(
+            (r) => (r.student_id || '').trim().toLowerCase() === (currentUser?.studentId || '').trim().toLowerCase()
+          );
 
           return (
             <div key={ev.id} className="item-card">
@@ -65,7 +71,14 @@ export default function EventSection({
                 <div className="card-header">
                   <div>
                     <h3 className="card-title">{ev.name}</h3>
-                    <div className="card-subtitle">By {ev.organizer}</div>
+                    <div className="card-subtitle">
+                      By {ev.organizer}
+                      {isOwner && (
+                        <span className="badge badge-green" style={{ marginLeft: '6px', fontSize: '0.68rem' }}>
+                          Added by You
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <span
@@ -89,7 +102,7 @@ export default function EventSection({
                   <div className="card-meta-row">
                     <Calendar size={15} />
                     <span>
-                      {ev.date} {ev.end_date && ev.end_date !== ev.date ? `to ${ev.end_date}` : ''}
+                      {formatToYYYYMMDD(ev.date)} {ev.end_date && formatToYYYYMMDD(ev.end_date) !== formatToYYYYMMDD(ev.date) ? `to ${formatToYYYYMMDD(ev.end_date)}` : ''}
                     </span>
                   </div>
 
@@ -145,32 +158,52 @@ export default function EventSection({
                             padding: '0.5rem',
                             borderRadius: 'var(--radius-sm)',
                             border: '1px solid var(--border-subtle)',
-                            maxHeight: '110px',
+                            maxHeight: '130px',
                             overflowY: 'auto'
                           }}
                         >
-                          {ev.registrations.map((reg) => (
-                            <div
-                              key={reg.student_id}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                fontSize: '0.76rem',
-                                padding: '0.25rem 0',
-                                borderBottom: '1px solid #E2E8F0'
-                              }}
-                            >
-                              <span>{reg.name} ({reg.student_id})</span>
-                              <button
-                                onClick={() => onCancelRegistration(ev.id, reg.student_id)}
-                                style={{ color: 'var(--aust-red)', padding: '2px' }}
-                                title="Remove attendee"
+                          {ev.registrations.map((reg) => {
+                            const isMyRegistration =
+                              currentUser &&
+                              (reg.student_id || '').trim().toLowerCase() === (currentUser.studentId || '').trim().toLowerCase();
+
+                            return (
+                              <div
+                                key={reg.student_id}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  fontSize: '0.76rem',
+                                  padding: '0.3rem 0',
+                                  borderBottom: '1px solid #E2E8F0'
+                                }}
                               >
-                                <Trash2 size={11} />
-                              </button>
-                            </div>
-                          ))}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <span>{reg.name} ({reg.student_id})</span>
+                                  {isMyRegistration && (
+                                    <span
+                                      className="badge badge-green"
+                                      style={{ fontSize: '0.65rem', padding: '0.08rem 0.38rem' }}
+                                    >
+                                      You
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Only the current student can remove their own registration */}
+                                {isMyRegistration && (
+                                  <button
+                                    onClick={() => onCancelRegistration(ev.id, reg.student_id)}
+                                    style={{ color: 'var(--aust-red)', padding: '2px', marginLeft: '6px' }}
+                                    title="Cancel your registration"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -179,34 +212,56 @@ export default function EventSection({
               </div>
 
               <div className="card-actions">
-                <button
-                  className="btn-card-action primary"
-                  disabled={isFull}
-                  onClick={() => onOpenRegisterModal(ev)}
-                  style={isFull ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
-                  title={isFull ? 'Event is full' : 'Register a student'}
-                >
-                  <UserPlus size={13} />
-                  <span>{isFull ? 'Full' : 'Register'}</span>
-                </button>
+                {isUserRegistered ? (
+                  <button
+                    className="btn-card-action"
+                    disabled
+                    style={{
+                      color: 'var(--aust-green)',
+                      borderColor: 'var(--aust-green-border)',
+                      background: 'var(--aust-green-light)',
+                      cursor: 'default'
+                    }}
+                    title="You are registered for this event"
+                  >
+                    <UserCheck size={13} />
+                    <span>Registered</span>
+                  </button>
+                ) : (
+                  <button
+                    className="btn-card-action primary"
+                    disabled={isFull}
+                    onClick={() => onOpenRegisterModal(ev)}
+                    style={isFull ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                    title={isFull ? 'Event is full' : 'Register for this event'}
+                  >
+                    <UserPlus size={13} />
+                    <span>{isFull ? 'Full' : 'Register'}</span>
+                  </button>
+                )}
 
-                <button
-                  className="btn-card-action"
-                  onClick={() => onEdit('events', ev)}
-                  title="Edit event"
-                >
-                  <Edit2 size={13} />
-                  <span>Edit</span>
-                </button>
+                {/* Only creator can edit/delete their own event */}
+                {isOwner && (
+                  <>
+                    <button
+                      className="btn-card-action"
+                      onClick={() => onEdit('events', ev)}
+                      title="Edit this event"
+                    >
+                      <Edit2 size={13} />
+                      <span>Edit</span>
+                    </button>
 
-                <button
-                  className="btn-card-action danger"
-                  onClick={() => onDelete('events', ev.id, ev.name)}
-                  title="Delete event"
-                >
-                  <Trash2 size={13} />
-                  <span>Delete</span>
-                </button>
+                    <button
+                      className="btn-card-action danger"
+                      onClick={() => onDelete('events', ev.id, ev.name)}
+                      title="Delete this event"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           );

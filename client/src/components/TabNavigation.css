@@ -55,18 +55,22 @@
 .primary-add-btn {
   background: var(--aust-green);
   color: #FFFFFF;
-  padding: 0.6rem 1.25rem;
+  padding: 0.65rem 1.25rem;
   border-radius: var(--radius-sm);
   font-size: 0.88rem;
   font-weight: 700;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  margin-bottom: 0.2rem;
+  flex-shrink: 0;
 }
 
 .primary-add-btn:hover {
   background: var(--aust-green-dark);
-  box-shadow: 0 4px 10px rgba(0, 135, 61, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 135, 61, 0.28);
   transform: translateY(-1px);
 }

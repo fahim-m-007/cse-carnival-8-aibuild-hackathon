@@ -1,0 +1,10 @@
+{
+  "name": "campusos",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "client:install": "npm --prefix client install",
+    "client:dev": "npm --prefix client run dev"
+  }
+}

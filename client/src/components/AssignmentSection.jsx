@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Search, Calendar, FileText, UploadCloud, Award, Edit2, Trash2 } from 'lucide-react';
+import { isItemOwner, formatToYYYYMMDD } from '../services/api';
 import './SectionCommon.css';
 
 export default function AssignmentSection({
   assignments,
   onEdit,
-  onDelete
+  onDelete,
+  currentUser = null
 }) {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,15 +55,23 @@ export default function AssignmentSection({
           const isSubmitted = asgn.status === 'submitted';
           const isGraded = asgn.status === 'graded';
           const isLate = asgn.status === 'late';
+          const isOwner = isItemOwner(asgn, currentUser);
 
           return (
             <div key={asgn.id} className="item-card">
               <div>
                 <div className="card-header">
                   <div>
-                    <span className="badge badge-green" style={{ marginBottom: '0.35rem' }}>
-                      {asgn.course}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                      <span className="badge badge-green">
+                        {asgn.course}
+                      </span>
+                      {isOwner && (
+                        <span className="badge badge-green" style={{ fontSize: '0.68rem' }}>
+                          Added by You
+                        </span>
+                      )}
+                    </div>
                     <h3 className="card-title">{asgn.title}</h3>
                     <div className="card-subtitle">{asgn.course_title}</div>
                   </div>
@@ -89,7 +99,7 @@ export default function AssignmentSection({
                   <div className="card-meta-row">
                     <Calendar size={15} />
                     <span>
-                      Deadline: <strong style={{ color: 'var(--aust-red)' }}>{asgn.deadline}</strong>
+                      Deadline: <strong style={{ color: 'var(--aust-red)' }}>{formatToYYYYMMDD(asgn.deadline)}</strong>
                     </span>
                   </div>
 
@@ -105,25 +115,27 @@ export default function AssignmentSection({
                 </div>
               </div>
 
-              <div className="card-actions">
-                <button
-                  className="btn-card-action"
-                  onClick={() => onEdit('assignments', asgn)}
-                  title="Edit assignment"
-                >
-                  <Edit2 size={13} />
-                  <span>Edit</span>
-                </button>
+              {isOwner && (
+                <div className="card-actions">
+                  <button
+                    className="btn-card-action"
+                    onClick={() => onEdit('assignments', asgn)}
+                    title="Edit assignment"
+                  >
+                    <Edit2 size={13} />
+                    <span>Edit</span>
+                  </button>
 
-                <button
-                  className="btn-card-action danger"
-                  onClick={() => onDelete('assignments', asgn.id, asgn.title)}
-                  title="Delete assignment"
-                >
-                  <Trash2 size={13} />
-                  <span>Delete</span>
-                </button>
-              </div>
+                  <button
+                    className="btn-card-action danger"
+                    onClick={() => onDelete('assignments', asgn.id, asgn.title)}
+                    title="Delete assignment"
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

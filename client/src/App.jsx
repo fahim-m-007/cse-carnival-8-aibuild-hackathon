@@ -109,58 +109,58 @@ export default function App() {
   // Form Submit Handler
   const handleModalSubmit = async (formData) => {
     const { type, initialData } = modalConfig;
-    handleCloseModal();
 
     try {
       if (type === 'schedules') {
         if (initialData?.id) {
-          const updated = await updateSchedule(initialData.id, formData);
+          const updated = await updateSchedule(initialData.id, formData, currentUser);
           setSchedules(prev => prev.map(s => s.id === initialData.id ? updated : s));
         } else {
-          const created = await createSchedule(formData);
+          const created = await createSchedule(formData, currentUser);
           setSchedules(prev => [created, ...prev]);
         }
       } else if (type === 'rooms') {
         if (initialData?.id) {
-          const updated = await updateRoom(initialData.id, formData);
+          const updated = await updateRoom(initialData.id, formData, currentUser);
           setRooms(prev => prev.map(r => r.id === initialData.id ? updated : r));
         } else {
-          const created = await createRoom(formData);
+          const created = await createRoom(formData, currentUser);
           setRooms(prev => [...prev, created]);
         }
       } else if (type === 'events') {
         if (initialData?.id) {
-          const updated = await updateEvent(initialData.id, formData);
+          const updated = await updateEvent(initialData.id, formData, currentUser);
           setEvents(prev => prev.map(e => e.id === initialData.id ? updated : e));
         } else {
-          const created = await createEvent(formData);
+          const created = await createEvent(formData, currentUser);
           setEvents(prev => [created, ...prev]);
         }
       } else if (type === 'announcements') {
         if (initialData?.id) {
-          const updated = await updateAnnouncement(initialData.id, formData);
+          const updated = await updateAnnouncement(initialData.id, formData, currentUser);
           setAnnouncements(prev => prev.map(a => a.id === initialData.id ? updated : a));
         } else {
-          const created = await createAnnouncement(formData);
+          const created = await createAnnouncement(formData, currentUser);
           setAnnouncements(prev => [created, ...prev]);
         }
       } else if (type === 'assignments') {
         if (initialData?.id) {
-          const updated = await updateAssignment(initialData.id, formData);
+          const updated = await updateAssignment(initialData.id, formData, currentUser);
           setAssignments(prev => prev.map(a => a.id === initialData.id ? updated : a));
         } else {
-          const created = await createAssignment(formData);
+          const created = await createAssignment(formData, currentUser);
           setAssignments(prev => [created, ...prev]);
         }
       } else if (type === 'bookRoom') {
-        await bookRoom(initialData.id, formData);
+        await bookRoom(initialData.id, formData, currentUser);
         await loadAllData();
       } else if (type === 'registerEvent') {
         await registerForEvent(initialData.id, formData);
         await loadAllData();
       }
+      handleCloseModal();
     } catch (err) {
-      alert(`Error saving: ${err.message}`);
+      alert(`Action failed: ${err.message}`);
     }
   };
 
@@ -170,19 +170,19 @@ export default function App() {
 
     try {
       if (type === 'schedules') {
-        await deleteSchedule(id);
+        await deleteSchedule(id, currentUser);
         setSchedules(prev => prev.filter(x => x.id !== id));
       } else if (type === 'rooms') {
-        await deleteRoom(id);
+        await deleteRoom(id, currentUser);
         setRooms(prev => prev.filter(x => x.id !== id));
       } else if (type === 'events') {
-        await deleteEvent(id);
+        await deleteEvent(id, currentUser);
         setEvents(prev => prev.filter(x => x.id !== id));
       } else if (type === 'announcements') {
-        await deleteAnnouncement(id);
+        await deleteAnnouncement(id, currentUser);
         setAnnouncements(prev => prev.filter(x => x.id !== id));
       } else if (type === 'assignments') {
-        await deleteAssignment(id);
+        await deleteAssignment(id, currentUser);
         setAssignments(prev => prev.filter(x => x.id !== id));
       }
     } catch (err) {
@@ -194,7 +194,7 @@ export default function App() {
   const handleCancelBooking = async (roomId, bookingId) => {
     if (!window.confirm('Cancel this room booking?')) return;
     try {
-      await cancelRoomBooking(roomId, bookingId);
+      await cancelRoomBooking(roomId, bookingId, currentUser);
       await loadAllData();
     } catch (err) {
       alert(`Error cancelling booking: ${err.message}`);
@@ -203,9 +203,9 @@ export default function App() {
 
   // Cancel Event Registration
   const handleCancelRegistration = async (eventId, studentId) => {
-    if (!window.confirm(`Remove attendee ${studentId}?`)) return;
+    if (!window.confirm(`Cancel your event registration (${studentId})?`)) return;
     try {
-      await cancelEventRegistration(eventId, studentId);
+      await cancelEventRegistration(eventId, studentId, currentUser);
       await loadAllData();
     } catch (err) {
       alert(`Error: ${err.message}`);
@@ -266,6 +266,7 @@ export default function App() {
               schedules={schedules}
               onEdit={handleOpenEditModal}
               onDelete={handleDelete}
+              currentUser={currentUser}
             />
           )}
 
@@ -276,6 +277,7 @@ export default function App() {
               onDelete={handleDelete}
               onOpenBookModal={handleOpenBookModal}
               onCancelBooking={handleCancelBooking}
+              currentUser={currentUser}
             />
           )}
 
@@ -286,6 +288,7 @@ export default function App() {
               onDelete={handleDelete}
               onOpenRegisterModal={handleOpenRegisterModal}
               onCancelRegistration={handleCancelRegistration}
+              currentUser={currentUser}
             />
           )}
 
@@ -294,6 +297,7 @@ export default function App() {
               announcements={announcements}
               onEdit={handleOpenEditModal}
               onDelete={handleDelete}
+              currentUser={currentUser}
             />
           )}
 
@@ -302,6 +306,7 @@ export default function App() {
               assignments={assignments}
               onEdit={handleOpenEditModal}
               onDelete={handleDelete}
+              currentUser={currentUser}
             />
           )}
         </section>
@@ -332,6 +337,7 @@ export default function App() {
         onSubmit={handleModalSubmit}
         type={modalConfig.type}
         initialData={modalConfig.initialData}
+        currentUser={currentUser}
       />
     </div>
   );

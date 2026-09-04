@@ -4,11 +4,58 @@ import seedRooms from '../data/rooms.json';
 import seedEvents from '../data/events.json';
 import seedAnnouncements from '../data/announcements.json';
 import seedAssignments from '../data/assignments.json';
+import { getCurrentUser } from './auth';
 
 const API_BASE = '/api';
 
 // Helper to check if backend is alive
 let isBackendOnline = false;
+
+// Format any date value into strict YYYY-MM-DD (Year-Month-Date)
+export function formatToYYYYMMDD(dateVal) {
+  if (!dateVal) return '';
+  const trimmed = String(dateVal).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  // Check for DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  // Check for YYYY/MM/DD
+  const ymdMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = ymdMatch[1];
+    const month = ymdMatch[2].padStart(2, '0');
+    const day = ymdMatch[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  try {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  } catch (e) {}
+  return trimmed;
+}
+
+// Ownership verification helper: checks if the given record was created by user
+export function isItemOwner(item, user = null) {
+  const currentUser = user || getCurrentUser();
+  if (!item || !currentUser) return false;
+  if (!item.createdBy) return false; // Initial seed records are institutional
+  const userStudentId = String(currentUser.studentId || '').trim().toLowerCase();
+  const userEmail = String(currentUser.eduMail || '').trim().toLowerCase();
+  const creator = String(item.createdBy || '').trim().toLowerCase();
+  return creator === userStudentId || creator === userEmail;
+}
 
 export async function checkBackendHealth() {
   try {
@@ -58,6 +105,19 @@ export function resetLocalSeed() {
   setLocal(STORAGE_KEYS.assignments, seedAssignments);
 }
 
+// Auto-generate next clean event ID (e.g. evt-006)
+export function getNextEventId() {
+  const list = getLocal(STORAGE_KEYS.events, seedEvents);
+  const nums = list
+    .map((e) => {
+      const match = String(e.id || '').match(/evt-(\d+)/i);
+      return match ? parseInt(match[1], 10) : NaN;
+    })
+    .filter((n) => !isNaN(n));
+  const nextNum = nums.length > 0 ? Math.max(...nums) + 1 : list.length + 1;
+  return `evt-${String(nextNum).padStart(3, '0')}`;
+}
+
 // --- Schedules API ---
 export async function fetchSchedules() {
   try {
@@ -71,23 +131,30 @@ export async function fetchSchedules() {
   return getLocal(STORAGE_KEYS.schedules, seedSchedules);
 }
 
-export async function createSchedule(item) {
+export async function createSchedule(item, user = null) {
+  const currentUser = user || getCurrentUser();
+  const newItem = {
+    ...item,
+    id: item.id || `sch-${Date.now()}`,
+    createdBy: item.createdBy || currentUser?.studentId || 'current_user',
+    createdByName: item.createdByName || currentUser?.name || 'AUST Student'
+  };
   try {
     const res = await fetch(`${API_BASE}/schedules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
+      body: JSON.stringify(newItem)
     });
     if (res.ok) return await res.json();
   } catch (e) {}
   const list = getLocal(STORAGE_KEYS.schedules, seedSchedules);
-  const newItem = { ...item, id: item.id || `sch-${Date.now()}` };
   list.unshift(newItem);
   setLocal(STORAGE_KEYS.schedules, list);
   return newItem;
 }
 
-export async function updateSchedule(id, item) {
+export async function updateSchedule(id, item, user = null) {
+  const currentUser = user || getCurrentUser();
   try {
     const res = await fetch(`${API_BASE}/schedules/${id}`, {
       method: 'PUT',
@@ -99,6 +166,9 @@ export async function updateSchedule(id, item) {
   const list = getLocal(STORAGE_KEYS.schedules, seedSchedules);
   const idx = list.findIndex(x => x.id === id);
   if (idx !== -1) {
+    if (currentUser && !isItemOwner(list[idx], currentUser)) {
+      throw new Error('Permission denied: You can only edit classes that you added.');
+    }
     list[idx] = { ...list[idx], ...item };
     setLocal(STORAGE_KEYS.schedules, list);
     return list[idx];
@@ -106,12 +176,17 @@ export async function updateSchedule(id, item) {
   return item;
 }
 
-export async function deleteSchedule(id) {
+export async function deleteSchedule(id, user = null) {
+  const currentUser = user || getCurrentUser();
+  const list = getLocal(STORAGE_KEYS.schedules, seedSchedules);
+  const target = list.find(x => x.id === id);
+  if (target && currentUser && !isItemOwner(target, currentUser)) {
+    throw new Error('Permission denied: You can only delete classes that you added. Institutional schedules cannot be removed.');
+  }
   try {
     const res = await fetch(`${API_BASE}/schedules/${id}`, { method: 'DELETE' });
     if (res.ok) return true;
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.schedules, seedSchedules);
   const filtered = list.filter(x => x.id !== id);
   setLocal(STORAGE_KEYS.schedules, filtered);
   return true;
@@ -119,34 +194,53 @@ export async function deleteSchedule(id) {
 
 // --- Rooms API ---
 export async function fetchRooms() {
+  let rooms = [];
   try {
     const res = await fetch(`${API_BASE}/rooms`);
     if (res.ok) {
-      const data = await res.json();
-      setLocal(STORAGE_KEYS.rooms, data);
-      return data;
+      rooms = await res.json();
     }
   } catch (e) {}
-  return getLocal(STORAGE_KEYS.rooms, seedRooms);
+  if (!rooms || rooms.length === 0) {
+    rooms = getLocal(STORAGE_KEYS.rooms, seedRooms);
+  }
+  // Sanitize all booking dates to strict YYYY-MM-DD
+  rooms = rooms.map(r => ({
+    ...r,
+    bookings: (r.bookings || []).map(b => ({
+      ...b,
+      date: formatToYYYYMMDD(b.date)
+    }))
+  }));
+  setLocal(STORAGE_KEYS.rooms, rooms);
+  return rooms;
 }
 
-export async function createRoom(item) {
+export async function createRoom(item, user = null) {
+  const currentUser = user || getCurrentUser();
+  const newItem = {
+    ...item,
+    id: item.id || `room-${Date.now()}`,
+    bookings: item.bookings || [],
+    createdBy: item.createdBy || currentUser?.studentId || 'current_user',
+    createdByName: item.createdByName || currentUser?.name || 'AUST Student'
+  };
   try {
     const res = await fetch(`${API_BASE}/rooms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
+      body: JSON.stringify(newItem)
     });
     if (res.ok) return await res.json();
   } catch (e) {}
   const list = getLocal(STORAGE_KEYS.rooms, seedRooms);
-  const newItem = { ...item, id: item.id || `room-${Date.now()}`, bookings: item.bookings || [] };
   list.push(newItem);
   setLocal(STORAGE_KEYS.rooms, list);
   return newItem;
 }
 
-export async function updateRoom(id, item) {
+export async function updateRoom(id, item, user = null) {
+  const currentUser = user || getCurrentUser();
   try {
     const res = await fetch(`${API_BASE}/rooms/${id}`, {
       method: 'PUT',
@@ -158,6 +252,9 @@ export async function updateRoom(id, item) {
   const list = getLocal(STORAGE_KEYS.rooms, seedRooms);
   const idx = list.findIndex(x => x.id === id);
   if (idx !== -1) {
+    if (currentUser && !isItemOwner(list[idx], currentUser)) {
+      throw new Error('Permission denied: You can only edit rooms that you added.');
+    }
     list[idx] = { ...list[idx], ...item };
     setLocal(STORAGE_KEYS.rooms, list);
     return list[idx];
@@ -165,40 +262,65 @@ export async function updateRoom(id, item) {
   return item;
 }
 
-export async function deleteRoom(id) {
+export async function deleteRoom(id, user = null) {
+  const currentUser = user || getCurrentUser();
+  const list = getLocal(STORAGE_KEYS.rooms, seedRooms);
+  const target = list.find(x => x.id === id);
+  if (target && currentUser && !isItemOwner(target, currentUser)) {
+    throw new Error('Permission denied: You can only delete rooms that you added. Official rooms cannot be deleted.');
+  }
   try {
     const res = await fetch(`${API_BASE}/rooms/${id}`, { method: 'DELETE' });
     if (res.ok) return true;
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.rooms, seedRooms);
   const filtered = list.filter(x => x.id !== id);
   setLocal(STORAGE_KEYS.rooms, filtered);
   return true;
 }
 
-export async function bookRoom(roomId, bookingData) {
+export async function bookRoom(roomId, bookingData, user = null) {
+  const currentUser = user || getCurrentUser();
+  const formattedDate = formatToYYYYMMDD(bookingData.date) || '2026-09-05';
+  const newBooking = {
+    booking_id: `bk-${Date.now().toString().slice(-4)}`,
+    ...bookingData,
+    date: formattedDate,
+    booked_by: bookingData.booked_by || currentUser?.name || 'AUST Student',
+    booked_by_id: currentUser?.studentId || bookingData.booked_by_id || ''
+  };
   try {
     const res = await fetch(`${API_BASE}/rooms/${roomId}/book`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bookingData)
+      body: JSON.stringify(newBooking)
     });
     if (res.ok) return await res.json();
   } catch (e) {}
   const list = getLocal(STORAGE_KEYS.rooms, seedRooms);
   const room = list.find(r => r.id === roomId || r.room_number === roomId);
   if (!room) throw new Error('Room not found');
-  const newBooking = {
-    booking_id: `bk-${Date.now().toString().slice(-4)}`,
-    ...bookingData
-  };
   room.bookings = room.bookings || [];
   room.bookings.push(newBooking);
   setLocal(STORAGE_KEYS.rooms, list);
   return { success: true, booking: newBooking, room };
 }
 
-export async function cancelRoomBooking(roomId, bookingId) {
+export async function cancelRoomBooking(roomId, bookingId, user = null) {
+  const currentUser = user || getCurrentUser();
+  const list = getLocal(STORAGE_KEYS.rooms, seedRooms);
+  const room = list.find(r => r.id === roomId || r.room_number === roomId);
+  if (room && room.bookings) {
+    const bk = room.bookings.find(b => b.booking_id === bookingId);
+    if (bk && currentUser && bk.booked_by_id) {
+      const currentStudentId = (currentUser.studentId || '').trim().toLowerCase();
+      const bookedById = (bk.booked_by_id || '').trim().toLowerCase();
+      if (bookedById !== currentStudentId) {
+        throw new Error('Permission denied: You can only cancel bookings that you created.');
+      }
+    }
+    room.bookings = room.bookings.filter(b => b.booking_id !== bookingId);
+    setLocal(STORAGE_KEYS.rooms, list);
+  }
   try {
     const res = await fetch(`${API_BASE}/rooms/${roomId}/cancel-booking`, {
       method: 'POST',
@@ -207,104 +329,174 @@ export async function cancelRoomBooking(roomId, bookingId) {
     });
     if (res.ok) return await res.json();
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.rooms, seedRooms);
-  const room = list.find(r => r.id === roomId || r.room_number === roomId);
-  if (room && room.bookings) {
-    room.bookings = room.bookings.filter(b => b.booking_id !== bookingId);
-    setLocal(STORAGE_KEYS.rooms, list);
-  }
   return { success: true };
 }
 
 // --- Events API ---
 export async function fetchEvents() {
+  let events = [];
   try {
     const res = await fetch(`${API_BASE}/events`);
     if (res.ok) {
-      const data = await res.json();
-      setLocal(STORAGE_KEYS.events, data);
-      return data;
+      events = await res.json();
     }
   } catch (e) {}
-  return getLocal(STORAGE_KEYS.events, seedEvents);
+  if (!events || events.length === 0) {
+    events = getLocal(STORAGE_KEYS.events, seedEvents);
+  }
+  // Sanitize all event dates to strict YYYY-MM-DD
+  events = events.map(e => ({
+    ...e,
+    date: formatToYYYYMMDD(e.date),
+    end_date: e.end_date ? formatToYYYYMMDD(e.end_date) : formatToYYYYMMDD(e.date)
+  }));
+  setLocal(STORAGE_KEYS.events, events);
+  return events;
 }
 
-export async function createEvent(item) {
+export async function createEvent(item, user = null) {
+  const currentUser = user || getCurrentUser();
+  const list = getLocal(STORAGE_KEYS.events, seedEvents);
+
+  // Normalize dates to strict YYYY-MM-DD
+  const date = formatToYYYYMMDD(item.date) || '2026-09-08';
+  const end_date = formatToYYYYMMDD(item.end_date) || date;
+
+  // Auto-generate next clean event ID if not given
+  let eventId = (item.id || '').trim();
+  if (!eventId) {
+    eventId = getNextEventId();
+  }
+
+  // Check if Event ID already exists
+  const idExists = list.some(e => String(e.id || '').toLowerCase() === eventId.toLowerCase());
+  if (idExists) {
+    throw new Error(`Event ID "${eventId}" is already given/taken. Please provide a unique Event ID.`);
+  }
+
+  // Check if Event Name already exists
+  const cleanName = (item.name || '').trim().toLowerCase();
+  if (cleanName) {
+    const nameExists = list.some(e => String(e.name || '').trim().toLowerCase() === cleanName);
+    if (nameExists) {
+      throw new Error(`An event with name "${item.name}" already exists. Please choose a unique event name.`);
+    }
+  }
+
+  const newItem = {
+    ...item,
+    id: eventId,
+    name: (item.name || '').trim(),
+    date,
+    end_date,
+    registered: item.registered || 0,
+    registrations: item.registrations || [],
+    createdBy: item.createdBy || currentUser?.studentId || 'current_user',
+    createdByName: item.createdByName || currentUser?.name || 'AUST Student',
+    organizer: item.organizer || currentUser?.name || 'CSE Department'
+  };
+
   try {
     const res = await fetch(`${API_BASE}/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
+      body: JSON.stringify(newItem)
     });
     if (res.ok) return await res.json();
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.events, seedEvents);
-  const newItem = {
-    ...item,
-    id: item.id || `evt-${Date.now()}`,
-    registered: item.registered || 0,
-    registrations: item.registrations || []
-  };
+
   list.unshift(newItem);
   setLocal(STORAGE_KEYS.events, list);
   return newItem;
 }
 
-export async function updateEvent(id, item) {
-  try {
-    const res = await fetch(`${API_BASE}/events/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {}
+export async function updateEvent(id, item, user = null) {
+  const currentUser = user || getCurrentUser();
   const list = getLocal(STORAGE_KEYS.events, seedEvents);
   const idx = list.findIndex(x => x.id === id);
   if (idx !== -1) {
-    list[idx] = { ...list[idx], ...item };
+    if (currentUser && !isItemOwner(list[idx], currentUser)) {
+      throw new Error('Permission denied: You can only edit events that you created.');
+    }
+    const date = item.date ? formatToYYYYMMDD(item.date) : list[idx].date;
+    const end_date = item.end_date ? formatToYYYYMMDD(item.end_date) : (item.date ? date : list[idx].end_date);
+    list[idx] = { ...list[idx], ...item, date, end_date };
     setLocal(STORAGE_KEYS.events, list);
     return list[idx];
   }
   return item;
 }
 
-export async function deleteEvent(id) {
+export async function deleteEvent(id, user = null) {
+  const currentUser = user || getCurrentUser();
+  const list = getLocal(STORAGE_KEYS.events, seedEvents);
+  const target = list.find(x => x.id === id);
+  if (target && currentUser && !isItemOwner(target, currentUser)) {
+    throw new Error('Permission denied: You can only delete events that you created. Institutional events cannot be removed.');
+  }
   try {
     const res = await fetch(`${API_BASE}/events/${id}`, { method: 'DELETE' });
     if (res.ok) return true;
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.events, seedEvents);
   const filtered = list.filter(x => x.id !== id);
   setLocal(STORAGE_KEYS.events, filtered);
   return true;
 }
 
 export async function registerForEvent(eventId, studentData) {
-  try {
-    const res = await fetch(`${API_BASE}/events/${eventId}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(studentData)
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {}
   const list = getLocal(STORAGE_KEYS.events, seedEvents);
   const ev = list.find(e => e.id === eventId || e.name.toLowerCase().includes(eventId.toLowerCase()));
   if (!ev) throw new Error('Event not found');
   if (ev.registered >= ev.capacity) throw new Error('Event capacity is full');
   ev.registrations = ev.registrations || [];
-  const already = ev.registrations.find(r => r.student_id === studentData.student_id);
-  if (!already) {
-    ev.registrations.push(studentData);
-    ev.registered = ev.registrations.length;
-    if (ev.registered >= ev.capacity) ev.status = 'full';
-    setLocal(STORAGE_KEYS.events, list);
+
+  const targetStudentId = (studentData.student_id || '').trim().toLowerCase();
+  const already = ev.registrations.find(r => (r.student_id || '').trim().toLowerCase() === targetStudentId);
+  if (already) {
+    throw new Error(`Student ID ${studentData.student_id} is already registered for this event.`);
   }
+
+  const cleanReg = {
+    student_id: studentData.student_id.trim(),
+    name: studentData.name.trim()
+  };
+
+  ev.registrations.push(cleanReg);
+  ev.registered = ev.registrations.length;
+  if (ev.registered >= ev.capacity) ev.status = 'full';
+  setLocal(STORAGE_KEYS.events, list);
+
+  try {
+    const res = await fetch(`${API_BASE}/events/${eventId}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cleanReg)
+    });
+    if (res.ok) return await res.json();
+  } catch (e) {}
+
   return { success: true, event: ev };
 }
 
-export async function cancelEventRegistration(eventId, studentId) {
+export async function cancelEventRegistration(eventId, studentId, user = null) {
+  const currentUser = user || getCurrentUser();
+  const currentStudentId = (currentUser?.studentId || '').trim().toLowerCase();
+  const targetStudentId = (studentId || '').trim().toLowerCase();
+
+  // Enforce rule: Users cannot delete other registered users' registration
+  if (currentUser && currentStudentId && targetStudentId !== currentStudentId) {
+    throw new Error("Permission denied: You cannot delete another student's event registration.");
+  }
+
+  const list = getLocal(STORAGE_KEYS.events, seedEvents);
+  const ev = list.find(e => e.id === eventId);
+  if (ev && ev.registrations) {
+    ev.registrations = ev.registrations.filter(r => (r.student_id || '').trim().toLowerCase() !== targetStudentId);
+    ev.registered = ev.registrations.length;
+    if (ev.status === 'full') ev.status = 'upcoming';
+    setLocal(STORAGE_KEYS.events, list);
+  }
+
   try {
     const res = await fetch(`${API_BASE}/events/${eventId}/cancel-registration`, {
       method: 'POST',
@@ -313,75 +505,87 @@ export async function cancelEventRegistration(eventId, studentId) {
     });
     if (res.ok) return await res.json();
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.events, seedEvents);
-  const ev = list.find(e => e.id === eventId);
-  if (ev && ev.registrations) {
-    ev.registrations = ev.registrations.filter(r => r.student_id !== studentId);
-    ev.registered = ev.registrations.length;
-    if (ev.status === 'full') ev.status = 'upcoming';
-    setLocal(STORAGE_KEYS.events, list);
-  }
+
   return { success: true };
 }
 
 // --- Announcements API ---
 export async function fetchAnnouncements() {
+  let announcements = [];
   try {
     const res = await fetch(`${API_BASE}/announcements`);
     if (res.ok) {
-      const data = await res.json();
-      setLocal(STORAGE_KEYS.announcements, data);
-      return data;
+      announcements = await res.json();
     }
   } catch (e) {}
-  return getLocal(STORAGE_KEYS.announcements, seedAnnouncements);
+  if (!announcements || announcements.length === 0) {
+    announcements = getLocal(STORAGE_KEYS.announcements, seedAnnouncements);
+  }
+  // Sanitize all announcement dates to strict YYYY-MM-DD
+  announcements = announcements.map(a => ({
+    ...a,
+    date: formatToYYYYMMDD(a.date),
+    expires: a.expires ? formatToYYYYMMDD(a.expires) : ''
+  }));
+  setLocal(STORAGE_KEYS.announcements, announcements);
+  return announcements;
 }
 
-export async function createAnnouncement(item) {
+export async function createAnnouncement(item, user = null) {
+  const currentUser = user || getCurrentUser();
+  const date = formatToYYYYMMDD(item.date) || formatToYYYYMMDD(new Date());
+  const expires = item.expires ? formatToYYYYMMDD(item.expires) : '';
+  const newItem = {
+    ...item,
+    id: item.id || `ann-${Date.now()}`,
+    date,
+    expires,
+    createdBy: item.createdBy || currentUser?.studentId || 'current_user',
+    createdByName: item.createdByName || currentUser?.name || 'AUST Student',
+    posted_by: item.posted_by || currentUser?.name || 'CSE Department'
+  };
   try {
     const res = await fetch(`${API_BASE}/announcements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
+      body: JSON.stringify(newItem)
     });
     if (res.ok) return await res.json();
   } catch (e) {}
   const list = getLocal(STORAGE_KEYS.announcements, seedAnnouncements);
-  const newItem = {
-    ...item,
-    id: item.id || `ann-${Date.now()}`,
-    date: item.date || '2026-09-04'
-  };
   list.unshift(newItem);
   setLocal(STORAGE_KEYS.announcements, list);
   return newItem;
 }
 
-export async function updateAnnouncement(id, item) {
-  try {
-    const res = await fetch(`${API_BASE}/announcements/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {}
+export async function updateAnnouncement(id, item, user = null) {
+  const currentUser = user || getCurrentUser();
   const list = getLocal(STORAGE_KEYS.announcements, seedAnnouncements);
   const idx = list.findIndex(x => x.id === id);
   if (idx !== -1) {
-    list[idx] = { ...list[idx], ...item };
+    if (currentUser && !isItemOwner(list[idx], currentUser)) {
+      throw new Error('Permission denied: You can only edit notices that you posted.');
+    }
+    const date = item.date ? formatToYYYYMMDD(item.date) : list[idx].date;
+    const expires = item.expires !== undefined ? (item.expires ? formatToYYYYMMDD(item.expires) : '') : list[idx].expires;
+    list[idx] = { ...list[idx], ...item, date, expires };
     setLocal(STORAGE_KEYS.announcements, list);
     return list[idx];
   }
   return item;
 }
 
-export async function deleteAnnouncement(id) {
+export async function deleteAnnouncement(id, user = null) {
+  const currentUser = user || getCurrentUser();
+  const list = getLocal(STORAGE_KEYS.announcements, seedAnnouncements);
+  const target = list.find(x => x.id === id);
+  if (target && currentUser && !isItemOwner(target, currentUser)) {
+    throw new Error('Permission denied: You can only delete notices that you posted. Official announcements cannot be removed.');
+  }
   try {
     const res = await fetch(`${API_BASE}/announcements/${id}`, { method: 'DELETE' });
     if (res.ok) return true;
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.announcements, seedAnnouncements);
   const filtered = list.filter(x => x.id !== id);
   setLocal(STORAGE_KEYS.announcements, filtered);
   return true;
@@ -389,58 +593,80 @@ export async function deleteAnnouncement(id) {
 
 // --- Assignments API ---
 export async function fetchAssignments() {
+  let assignments = [];
   try {
     const res = await fetch(`${API_BASE}/assignments`);
     if (res.ok) {
-      const data = await res.json();
-      setLocal(STORAGE_KEYS.assignments, data);
-      return data;
+      assignments = await res.json();
     }
   } catch (e) {}
-  return getLocal(STORAGE_KEYS.assignments, seedAssignments);
+  if (!assignments || assignments.length === 0) {
+    assignments = getLocal(STORAGE_KEYS.assignments, seedAssignments);
+  }
+  // Sanitize all assignment dates to strict YYYY-MM-DD
+  assignments = assignments.map(a => ({
+    ...a,
+    deadline: formatToYYYYMMDD(a.deadline),
+    assigned_date: a.assigned_date ? formatToYYYYMMDD(a.assigned_date) : ''
+  }));
+  setLocal(STORAGE_KEYS.assignments, assignments);
+  return assignments;
 }
 
-export async function createAssignment(item) {
+export async function createAssignment(item, user = null) {
+  const currentUser = user || getCurrentUser();
+  const deadline = formatToYYYYMMDD(item.deadline) || '2026-09-12';
+  const assigned_date = formatToYYYYMMDD(item.assigned_date) || formatToYYYYMMDD(new Date());
+  const newItem = {
+    ...item,
+    id: item.id || `asgn-${Date.now()}`,
+    deadline,
+    assigned_date,
+    createdBy: item.createdBy || currentUser?.studentId || 'current_user',
+    createdByName: item.createdByName || currentUser?.name || 'AUST Student'
+  };
   try {
     const res = await fetch(`${API_BASE}/assignments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
+      body: JSON.stringify(newItem)
     });
     if (res.ok) return await res.json();
   } catch (e) {}
   const list = getLocal(STORAGE_KEYS.assignments, seedAssignments);
-  const newItem = { ...item, id: item.id || `asgn-${Date.now()}` };
   list.unshift(newItem);
   setLocal(STORAGE_KEYS.assignments, list);
   return newItem;
 }
 
-export async function updateAssignment(id, item) {
-  try {
-    const res = await fetch(`${API_BASE}/assignments/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
-    });
-    if (res.ok) return await res.json();
-  } catch (e) {}
+export async function updateAssignment(id, item, user = null) {
+  const currentUser = user || getCurrentUser();
   const list = getLocal(STORAGE_KEYS.assignments, seedAssignments);
   const idx = list.findIndex(x => x.id === id);
   if (idx !== -1) {
-    list[idx] = { ...list[idx], ...item };
+    if (currentUser && !isItemOwner(list[idx], currentUser)) {
+      throw new Error('Permission denied: You can only edit assignments that you created.');
+    }
+    const deadline = item.deadline ? formatToYYYYMMDD(item.deadline) : list[idx].deadline;
+    const assigned_date = item.assigned_date ? formatToYYYYMMDD(item.assigned_date) : list[idx].assigned_date;
+    list[idx] = { ...list[idx], ...item, deadline, assigned_date };
     setLocal(STORAGE_KEYS.assignments, list);
     return list[idx];
   }
   return item;
 }
 
-export async function deleteAssignment(id) {
+export async function deleteAssignment(id, user = null) {
+  const currentUser = user || getCurrentUser();
+  const list = getLocal(STORAGE_KEYS.assignments, seedAssignments);
+  const target = list.find(x => x.id === id);
+  if (target && currentUser && !isItemOwner(target, currentUser)) {
+    throw new Error('Permission denied: You can only delete assignments that you created. Course assignments cannot be removed.');
+  }
   try {
     const res = await fetch(`${API_BASE}/assignments/${id}`, { method: 'DELETE' });
     if (res.ok) return true;
   } catch (e) {}
-  const list = getLocal(STORAGE_KEYS.assignments, seedAssignments);
   const filtered = list.filter(x => x.id !== id);
   setLocal(STORAGE_KEYS.assignments, filtered);
   return true;
