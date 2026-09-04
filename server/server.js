@@ -65,13 +65,23 @@ if (fs.existsSync(clientDist)) {
 // Initialize DB and launch server
 async function startServer() {
   await connectDB();
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`=========================================`);
     console.log(` CampusOS Server running on port ${PORT}`);
     console.log(` Dashboard UI: http://localhost:${PORT}`);
     console.log(` Health: http://localhost:${PORT}/api/health`);
     console.log(` Live SSE: http://localhost:${PORT}/api/events/live`);
     console.log(`=========================================`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n[Server Error] Port ${PORT} is already in use by another running process.`);
+      console.error(`Please stop the previous instance or run: npx kill-port ${PORT}\n`);
+      process.exit(1);
+    } else {
+      console.error('[Server Error]:', err);
+    }
   });
 }
 

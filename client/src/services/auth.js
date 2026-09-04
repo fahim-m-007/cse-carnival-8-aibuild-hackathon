@@ -104,6 +104,27 @@ export async function loginUser(eduMail, password) {
     throw new Error('Please enter your password.');
   }
 
+  // Try backend login
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eduMail: normalizedEmail, password: trimmedPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Login failed');
+    }
+    localStorage.removeItem('campusos_logged_out');
+    const sessionUser = setCurrentUser(data.user);
+    return sessionUser;
+  } catch (err) {
+    // If connection refused or offline, fallback to local registered users
+    if (err.message && !err.message.includes('fetch')) {
+      throw err;
+    }
+  }
+
   const users = getRegisteredUsers();
   const found = users.find(u => u.eduMail.toLowerCase() === normalizedEmail);
 
@@ -143,6 +164,32 @@ export async function registerUser({ eduMail, studentId, dept, password, name })
   }
   if (!trimmedPassword || trimmedPassword.length < 4) {
     throw new Error('Password must be at least 4 characters long.');
+  }
+
+  // Try backend register
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eduMail: normalizedEmail,
+        studentId: normalizedId,
+        dept: normalizedDept,
+        name: studentName,
+        password: trimmedPassword
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Registration failed');
+    }
+    localStorage.removeItem('campusos_logged_out');
+    const sessionUser = setCurrentUser(data.user);
+    return sessionUser;
+  } catch (err) {
+    if (err.message && !err.message.includes('fetch')) {
+      throw err;
+    }
   }
 
   const users = getRegisteredUsers();

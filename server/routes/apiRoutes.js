@@ -16,8 +16,13 @@ import {
 } from '../controllers/assignmentController.js';
 import { resetSeedData } from '../controllers/seedController.js';
 import { registerSSEClient } from '../config/db.js';
+import { register, login } from '../controllers/authController.js';
 
 const router = express.Router();
+
+// Authentication Routes
+router.post('/auth/register', register);
+router.post('/auth/login', login);
 
 // Health check
 router.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));

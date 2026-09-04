@@ -3,6 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import Schedule from '../models/Schedule.js';
+import Room from '../models/Room.js';
+import Event from '../models/Event.js';
+import Announcement from '../models/Announcement.js';
+import Assignment from '../models/Assignment.js';
+import User from '../models/User.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -11,6 +18,10 @@ const STORAGE_DIR = path.resolve(__dirname, '../data_storage');
 
 let isMongoActive = false;
 const sseClients = new Set();
+
+export function isMongoConnected() {
+  return isMongoActive && mongoose.connection.readyState === 1;
+}
 
 // Broadcast event to connected SSE clients
 export function broadcastDataChange(type, payload = {}) {
@@ -91,10 +102,27 @@ class PersistentFileStore {
     }
   }
 
-  resetAll() {
+  async resetAll() {
     for (const name of this.collections) {
       this.loadFromSeed(name);
     }
+
+    if (isMongoConnected()) {
+      try {
+        await Promise.all([
+          Schedule.deleteMany({}),
+          Room.deleteMany({}),
+          Event.deleteMany({}),
+          Announcement.deleteMany({}),
+          Assignment.deleteMany({})
+        ]);
+        await seedMongo();
+        console.log('[DB] MongoDB collections reset and reseeded.');
+      } catch (e) {
+        console.error('[DB] Failed resetting MongoDB collections:', e.message);
+      }
+    }
+
     broadcastDataChange('all', { action: 'reset' });
   }
 
@@ -142,21 +170,68 @@ class PersistentFileStore {
 
 export const store = new PersistentFileStore();
 
+async function seedMongo() {
+  try {
+    const schedules = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'schedules.json'), 'utf-8'));
+    const rooms = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'rooms.json'), 'utf-8'));
+    const events = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'events.json'), 'utf-8'));
+    const announcements = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'announcements.json'), 'utf-8'));
+    const assignments = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'assignments.json'), 'utf-8'));
+
+    await Promise.all([
+      Schedule.insertMany(schedules),
+      Room.insertMany(rooms),
+      Event.insertMany(events),
+      Announcement.insertMany(announcements),
+      Assignment.insertMany(assignments)
+    ]);
+
+    const userCount = await User.countDocuments();
+    if (userCount === 0) {
+      await User.create([
+        {
+          eduMail: 'student@aust.edu',
+          studentId: '20210104050',
+          dept: 'CSE',
+          name: 'AUST Student',
+          password: 'password123'
+        },
+        {
+          eduMail: 'fahim.cse@aust.edu',
+          studentId: '20210104007',
+          dept: 'CSE',
+          name: 'Fahim Morshed',
+          password: 'password123'
+        }
+      ]);
+    }
+    console.log('[DB] MongoDB successfully seeded with initial datasets.');
+  } catch (err) {
+    console.error('[DB] Seeding MongoDB failed:', err.message);
+  }
+}
+
 export async function connectDB() {
   const mongoUri = process.env.MONGODB_URI;
 
   if (mongoUri) {
     try {
       console.log('[DB] Connecting to MongoDB at', mongoUri.replace(/:([^:@]{3,})@/, ':***@'));
-      await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 2500 });
+      await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 3000 });
       isMongoActive = true;
-      console.log('[DB] MongoDB connected successfully.');
+      console.log('[DB] MongoDB connected successfully via Mongoose.');
+
+      // Check if seeded
+      const count = await Schedule.countDocuments();
+      if (count === 0) {
+        await seedMongo();
+      }
       return;
     } catch (err) {
       console.warn('[DB] MongoDB connection failed:', err.message);
+      console.log('[DB] Gracefully falling back to Persistent File Store.');
     }
   }
 
-  console.log('[DB] Running in zero-config mode: Persistent File Store enabled (persists to server/data_storage/).');
   store.init();
 }
