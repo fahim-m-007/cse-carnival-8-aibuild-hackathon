@@ -8,6 +8,8 @@ import AnnouncementSection from './components/AnnouncementSection';
 import AssignmentSection from './components/AssignmentSection';
 import Modal from './components/Modal';
 import ChatDrawer from './components/ChatDrawer';
+import AuthPage from './components/AuthPage';
+import { getCurrentUser, logoutUser } from './services/auth';
 import {
   fetchSchedules, createSchedule, updateSchedule, deleteSchedule,
   fetchRooms, createRoom, updateRoom, deleteRoom, bookRoom, cancelRoomBooking,
@@ -20,6 +22,7 @@ import './App.css';
 import { Bot } from 'lucide-react';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
   const [activeTab, setActiveTab] = useState('schedules');
   const [isChatOpen, setIsChatOpen] = useState(true);
 
@@ -215,6 +218,19 @@ export default function App() {
     await loadAllData();
   };
 
+  // Logout Handler
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to log out of CampusOS?')) {
+      logoutUser();
+      setCurrentUser(null);
+    }
+  };
+
+  // Auth gate: If user is not logged in, render the Login/Sign Up page first
+  if (!currentUser) {
+    return <AuthPage onLoginSuccess={(user) => setCurrentUser(user)} />;
+  }
+
   const counts = {
     schedules: schedules.length,
     rooms: rooms.length,
@@ -230,6 +246,8 @@ export default function App() {
         isChatOpen={isChatOpen}
         setIsChatOpen={setIsChatOpen}
         onResetSeed={handleResetSeed}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Split Layout */}

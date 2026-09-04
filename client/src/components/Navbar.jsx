@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { RotateCcw, Bot, Calendar, Sparkles } from 'lucide-react';
+import { RotateCcw, Bot, Calendar, Sparkles, LogOut, User } from 'lucide-react';
 import './Navbar.css';
 
 export default function Navbar({
   isChatOpen,
   setIsChatOpen,
   onResetSeed,
+  currentUser,
+  onLogout,
   currentTime = 'Friday, 4 Sep 2026 · 15:45'
 }) {
   const [resetting, setResetting] = useState(false);
@@ -44,6 +46,18 @@ export default function Navbar({
       </div>
 
       <div className="nav-actions">
+        {currentUser && (
+          <div className="user-profile-badge" title={`Logged in as ${currentUser.name} (${currentUser.eduMail})`}>
+            <div className="user-avatar">
+              <User size={14} />
+            </div>
+            <div className="user-details">
+              <span className="user-id">{currentUser.studentId}</span>
+              <span className="user-dept-badge">{currentUser.dept}</span>
+            </div>
+          </div>
+        )}
+
         <button
           className="btn-seed-reset"
           onClick={handleReset}
@@ -61,6 +75,17 @@ export default function Navbar({
           <Bot size={16} />
           <span>AI Senior Assistant</span>
         </button>
+
+        {onLogout && (
+          <button
+            className="btn-logout"
+            onClick={onLogout}
+            title="Log out and return to login screen"
+          >
+            <LogOut size={15} />
+            <span>Log Out</span>
+          </button>
+        )}
       </div>
     </header>
   );
