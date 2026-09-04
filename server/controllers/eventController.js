@@ -97,25 +97,31 @@ export const registerForEvent = async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields: student_id, name' });
   }
 
+  const cleanStudentId = String(student_id).trim();
+  const cleanName = String(name).trim();
+
   try {
     if (isMongoConnected()) {
       const event = await Event.findOne({ $or: [{ id }, { name: new RegExp(id, 'i') }] });
       if (!event) return res.status(404).json({ error: 'Event not found' });
 
       event.registrations = event.registrations || [];
-      if (event.registrations.length >= event.capacity) {
+      const currentCount = Math.max(event.registered || 0, event.registrations.length);
+      if (currentCount >= event.capacity) {
         event.status = 'full';
         await event.save();
         return res.status(400).json({ error: 'Event has reached maximum capacity.' });
       }
 
-      const alreadyRegistered = event.registrations.find(r => r.student_id === student_id);
+      const alreadyRegistered = event.registrations.find(
+        r => (r.student_id || '').trim().toLowerCase() === cleanStudentId.toLowerCase()
+      );
       if (alreadyRegistered) {
-        return res.status(409).json({ error: `Student ${student_id} is already registered.` });
+        return res.status(409).json({ error: `Student ID ${cleanStudentId} is already registered for this event.` });
       }
 
-      event.registrations.push({ student_id, name });
-      event.registered = event.registrations.length;
+      event.registrations.push({ student_id: cleanStudentId, name: cleanName });
+      event.registered = Math.max((event.registered || 0) + 1, event.registrations.length);
       if (event.registered >= event.capacity) {
         event.status = 'full';
       }
@@ -132,19 +138,22 @@ export const registerForEvent = async (req, res) => {
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
   event.registrations = event.registrations || [];
-  if (event.registrations.length >= event.capacity) {
+  const currentCount = Math.max(event.registered || 0, event.registrations.length);
+  if (currentCount >= event.capacity) {
     event.status = 'full';
     store.update('events', event.id, { status: 'full' });
     return res.status(400).json({ error: 'Event has reached maximum capacity.' });
   }
 
-  const alreadyRegistered = event.registrations.find(r => r.student_id === student_id);
+  const alreadyRegistered = event.registrations.find(
+    r => (r.student_id || '').trim().toLowerCase() === cleanStudentId.toLowerCase()
+  );
   if (alreadyRegistered) {
-    return res.status(409).json({ error: `Student ${student_id} is already registered.` });
+    return res.status(409).json({ error: `Student ID ${cleanStudentId} is already registered for this event.` });
   }
 
-  event.registrations.push({ student_id, name });
-  event.registered = event.registrations.length;
+  event.registrations.push({ student_id: cleanStudentId, name: cleanName });
+  event.registered = Math.max((event.registered || 0) + 1, event.registrations.length);
   if (event.registered >= event.capacity) {
     event.status = 'full';
   }
@@ -163,26 +172,34 @@ export const cancelEventRegistration = async (req, res) => {
   const { id } = req.params;
   const { student_id } = req.body;
 
+  if (!student_id) {
+    return res.status(400).json({ error: 'Missing required field: student_id' });
+  }
+
+  const cleanStudentId = String(student_id).trim().toLowerCase();
+
   try {
     if (isMongoConnected()) {
       const event = await Event.findOne({ $or: [{ id }, { name: new RegExp(id, 'i') }] });
       if (!event) return res.status(404).json({ error: 'Event not found' });
 
       const initialCount = (event.registrations || []).length;
-      event.registrations = (event.registrations || []).filter(r => r.student_id !== student_id);
+      event.registrations = (event.registrations || []).filter(
+        r => (r.student_id || '').trim().toLowerCase() !== cleanStudentId
+      );
 
       if (event.registrations.length === initialCount) {
         return res.status(404).json({ error: 'Student registration not found' });
       }
 
-      event.registered = event.registrations.length;
+      event.registered = Math.max(0, (event.registered || initialCount) - 1);
       if (event.status === 'full' && event.registered < event.capacity) {
         event.status = 'upcoming';
       }
 
       await event.save();
       broadcastDataChange('events', { action: 'update', item: event });
-      return res.json({ success: true, message: 'Registration cancelled' });
+      return res.json({ success: true, message: 'Registration cancelled', event });
     }
   } catch (e) {
     console.error('[Events Cancel Error]:', e);
@@ -192,13 +209,15 @@ export const cancelEventRegistration = async (req, res) => {
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
   const initialCount = (event.registrations || []).length;
-  event.registrations = (event.registrations || []).filter(r => r.student_id !== student_id);
+  event.registrations = (event.registrations || []).filter(
+    r => (r.student_id || '').trim().toLowerCase() !== cleanStudentId
+  );
 
   if (event.registrations.length === initialCount) {
     return res.status(404).json({ error: 'Student registration not found' });
   }
 
-  event.registered = event.registrations.length;
+  event.registered = Math.max(0, (event.registered || initialCount) - 1);
   if (event.status === 'full' && event.registered < event.capacity) {
     event.status = 'upcoming';
   }
@@ -209,5 +228,5 @@ export const cancelEventRegistration = async (req, res) => {
     status: event.status
   });
 
-  res.json({ success: true, message: 'Registration cancelled' });
+  res.json({ success: true, message: 'Registration cancelled', event });
 };

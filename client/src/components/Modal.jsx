@@ -15,10 +15,24 @@ export default function Modal({
   const [formData, setFormData] = useState({});
 
   useEffect(() => {
-    if (initialData) {
+    const today = formatToYYYYMMDD(new Date()) || '2026-09-04';
+
+    if (type === 'registerEvent') {
+      setFormData({
+        student_id: currentUser?.studentId || '',
+        name: currentUser?.name || ''
+      });
+    } else if (type === 'bookRoom') {
+      setFormData({
+        date: today,
+        start_time: '15:00',
+        end_time: '17:00',
+        booked_by: currentUser?.name || '',
+        purpose: 'Group Study Session'
+      });
+    } else if (initialData) {
       setFormData({ ...initialData });
     } else {
-      const today = formatToYYYYMMDD(new Date()) || '2026-09-04';
       // Default empty templates
       if (type === 'schedules') {
         setFormData({
@@ -706,7 +720,7 @@ export default function Modal({
                   <input
                     name="student_id"
                     required
-                    readOnly
+                    placeholder="e.g. 20210104050"
                     value={formData.student_id || ''}
                     onChange={handleChange}
                   />
@@ -718,7 +732,7 @@ export default function Modal({
                   <input
                     name="name"
                     required
-                    readOnly
+                    placeholder="e.g. AUST Student"
                     value={formData.name || ''}
                     onChange={handleChange}
                   />
@@ -733,7 +747,7 @@ export default function Modal({
               Cancel
             </button>
             <button type="submit" className="btn-modal-submit">
-              Save Changes
+              {type === 'registerEvent' ? 'Confirm Registration' : type === 'bookRoom' ? 'Confirm Booking' : 'Save Changes'}
             </button>
           </div>
         </form>

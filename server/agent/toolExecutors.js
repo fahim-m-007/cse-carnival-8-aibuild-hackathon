@@ -198,6 +198,13 @@ export const toolExecutors = {
 
   register_for_event: async (args = {}) => {
     const { event_name_or_id, student_id, name } = args;
+    const cleanStudentId = String(student_id || '').trim();
+    const cleanName = String(name || '').trim();
+
+    if (!cleanStudentId) {
+      return { success: false, error: 'Student ID is required to register.' };
+    }
+
     if (isMongoConnected()) {
       const ev = await Event.findOne({
         $or: [
@@ -205,20 +212,26 @@ export const toolExecutors = {
           { name: new RegExp(event_name_or_id, 'i') }
         ]
       });
+
       if (!ev) return { success: false, error: `Event "${event_name_or_id}" not found.` };
 
       ev.registrations = ev.registrations || [];
-      if (ev.registrations.length >= ev.capacity) {
+      const currentCount = Math.max(ev.registered || 0, ev.registrations.length);
+      if (currentCount >= ev.capacity) {
+        ev.status = 'full';
+        await ev.save();
         return { success: false, error: `Event "${ev.name}" is already at full capacity (${ev.capacity} seats).` };
       }
 
-      const already = ev.registrations.find(r => r.student_id === student_id);
+      const already = ev.registrations.find(
+        r => (r.student_id || '').trim().toLowerCase() === cleanStudentId.toLowerCase()
+      );
       if (already) {
-        return { success: false, error: `Student ${student_id} is already registered for this event.` };
+        return { success: false, error: `Student ${cleanStudentId} is already registered for this event.` };
       }
 
-      ev.registrations.push({ student_id, name: name || 'Student' });
-      ev.registered = ev.registrations.length;
+      ev.registrations.push({ student_id: cleanStudentId, name: cleanName || 'Student' });
+      ev.registered = Math.max((ev.registered || 0) + 1, ev.registrations.length);
       if (ev.registered >= ev.capacity) ev.status = 'full';
 
       await ev.save();
@@ -227,8 +240,8 @@ export const toolExecutors = {
       return {
         success: true,
         event_name: ev.name,
-        student_id,
-        name: name || 'Student',
+        student_id: cleanStudentId,
+        name: cleanName || 'Student',
         venue: ev.venue,
         date: ev.date,
         start_time: ev.start_time
@@ -237,23 +250,26 @@ export const toolExecutors = {
       const events = store.getAll('events');
       const ev = events.find(e =>
         e.id === event_name_or_id ||
-        e.name?.toLowerCase().includes(event_name_or_id.toLowerCase())
+        e.name?.toLowerCase().includes(String(event_name_or_id).toLowerCase())
       );
 
       if (!ev) return { success: false, error: `Event "${event_name_or_id}" not found.` };
 
       ev.registrations = ev.registrations || [];
-      if (ev.registrations.length >= ev.capacity) {
+      const currentCount = Math.max(ev.registered || 0, ev.registrations.length);
+      if (currentCount >= ev.capacity) {
         return { success: false, error: `Event "${ev.name}" is already at full capacity (${ev.capacity} seats).` };
       }
 
-      const already = ev.registrations.find(r => r.student_id === student_id);
+      const already = ev.registrations.find(
+        r => (r.student_id || '').trim().toLowerCase() === cleanStudentId.toLowerCase()
+      );
       if (already) {
-        return { success: false, error: `Student ${student_id} is already registered for this event.` };
+        return { success: false, error: `Student ${cleanStudentId} is already registered for this event.` };
       }
 
-      ev.registrations.push({ student_id, name: name || 'Student' });
-      ev.registered = ev.registrations.length;
+      ev.registrations.push({ student_id: cleanStudentId, name: cleanName || 'Student' });
+      ev.registered = Math.max((ev.registered || 0) + 1, ev.registrations.length);
       if (ev.registered >= ev.capacity) ev.status = 'full';
 
       store.update('events', ev.id, {
@@ -265,8 +281,8 @@ export const toolExecutors = {
       return {
         success: true,
         event_name: ev.name,
-        student_id,
-        name: name || 'Student',
+        student_id: cleanStudentId,
+        name: cleanName || 'Student',
         venue: ev.venue,
         date: ev.date,
         start_time: ev.start_time

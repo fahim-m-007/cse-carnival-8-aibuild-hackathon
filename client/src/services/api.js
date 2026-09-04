@@ -459,38 +459,65 @@ export async function deleteEvent(id, user = null) {
 }
 
 export async function registerForEvent(eventId, studentData) {
-  const list = getLocal(STORAGE_KEYS.events, seedEvents);
-  const ev = list.find(e => e.id === eventId || e.name.toLowerCase().includes(eventId.toLowerCase()));
-  if (!ev) throw new Error('Event not found');
-  if (ev.registered >= ev.capacity) throw new Error('Event capacity is full');
-  ev.registrations = ev.registrations || [];
-
-  const targetStudentId = (studentData.student_id || '').trim().toLowerCase();
-  const already = ev.registrations.find(r => (r.student_id || '').trim().toLowerCase() === targetStudentId);
-  if (already) {
-    throw new Error(`Student ID ${studentData.student_id} is already registered for this event.`);
-  }
-
   const cleanReg = {
-    student_id: studentData.student_id.trim(),
-    name: studentData.name.trim()
+    student_id: (studentData.student_id || '').trim(),
+    name: (studentData.name || '').trim()
   };
 
-  ev.registrations.push(cleanReg);
-  ev.registered = ev.registrations.length;
-  if (ev.registered >= ev.capacity) ev.status = 'full';
-  setLocal(STORAGE_KEYS.events, list);
+  if (!cleanReg.student_id || !cleanReg.name) {
+    throw new Error('Please provide both your Student ID and Full Name to register.');
+  }
 
+  // 1. Prioritize Backend Call (saves directly to MongoDB Atlas)
   try {
     const res = await fetch(`${API_BASE}/events/${eventId}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cleanReg)
     });
-    if (res.ok) return await res.json();
-  } catch (e) {}
 
-  return { success: true, event: ev };
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Registration failed (Status: ${res.status})`);
+    }
+
+    const data = await res.json();
+
+    // Sync local storage cache with returned event
+    const list = getLocal(STORAGE_KEYS.events, seedEvents);
+    const idx = list.findIndex(e => e.id === eventId || (data.event && e.id === data.event.id));
+    if (idx !== -1 && data.event) {
+      list[idx] = data.event;
+    }
+    setLocal(STORAGE_KEYS.events, list);
+
+    return data;
+  } catch (err) {
+    // If it's a backend validation/business error (e.g. 400 capacity full or 409 already registered), throw it
+    if (err.message && !err.message.includes('fetch') && !err.message.includes('NetworkError') && !err.message.includes('Failed to fetch')) {
+      throw err;
+    }
+
+    // 2. Offline Fallback if backend is unreachable
+    const list = getLocal(STORAGE_KEYS.events, seedEvents);
+    const ev = list.find(e => e.id === eventId || e.name.toLowerCase().includes(eventId.toLowerCase()));
+    if (!ev) throw new Error('Event not found');
+    if (ev.registered >= ev.capacity) throw new Error('Event capacity is full');
+    ev.registrations = ev.registrations || [];
+
+    const targetStudentId = cleanReg.student_id.toLowerCase();
+    const already = ev.registrations.find(r => (r.student_id || '').trim().toLowerCase() === targetStudentId);
+    if (already) {
+      throw new Error(`Student ID ${cleanReg.student_id} is already registered for this event.`);
+    }
+
+    ev.registrations.push(cleanReg);
+    ev.registered = Math.max((ev.registered || 0) + 1, ev.registrations.length);
+    if (ev.registered >= ev.capacity) ev.status = 'full';
+    setLocal(STORAGE_KEYS.events, list);
+
+    return { success: true, event: ev };
+  }
 }
 
 export async function cancelEventRegistration(eventId, studentId, user = null) {
@@ -503,25 +530,53 @@ export async function cancelEventRegistration(eventId, studentId, user = null) {
     throw new Error("Permission denied: You cannot delete another student's event registration.");
   }
 
-  const list = getLocal(STORAGE_KEYS.events, seedEvents);
-  const ev = list.find(e => e.id === eventId);
-  if (ev && ev.registrations) {
-    ev.registrations = ev.registrations.filter(r => (r.student_id || '').trim().toLowerCase() !== targetStudentId);
-    ev.registered = ev.registrations.length;
-    if (ev.status === 'full') ev.status = 'upcoming';
-    setLocal(STORAGE_KEYS.events, list);
-  }
-
+  // 1. Prioritize Backend Call (saves directly to MongoDB Atlas)
   try {
     const res = await fetch(`${API_BASE}/events/${eventId}/cancel-registration`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: studentId })
+      body: JSON.stringify({ student_id: (studentId || '').trim() })
     });
-    if (res.ok) return await res.json();
-  } catch (e) {}
 
-  return { success: true };
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Cancel registration failed (Status: ${res.status})`);
+    }
+
+    const data = await res.json();
+
+    // Sync local storage
+    const list = getLocal(STORAGE_KEYS.events, seedEvents);
+    const idx = list.findIndex(e => e.id === eventId);
+    if (idx !== -1 && data.event) {
+      list[idx] = data.event;
+    } else if (idx !== -1) {
+      list[idx].registrations = (list[idx].registrations || []).filter(r => (r.student_id || '').trim().toLowerCase() !== targetStudentId);
+      list[idx].registered = Math.max(0, (list[idx].registered || 1) - 1);
+      if (list[idx].status === 'full' && list[idx].registered < list[idx].capacity) {
+        list[idx].status = 'upcoming';
+      }
+    }
+    setLocal(STORAGE_KEYS.events, list);
+
+    return data;
+  } catch (err) {
+    if (err.message && !err.message.includes('fetch') && !err.message.includes('NetworkError') && !err.message.includes('Failed to fetch')) {
+      throw err;
+    }
+
+    // Offline fallback
+    const list = getLocal(STORAGE_KEYS.events, seedEvents);
+    const ev = list.find(e => e.id === eventId);
+    if (ev && ev.registrations) {
+      ev.registrations = ev.registrations.filter(r => (r.student_id || '').trim().toLowerCase() !== targetStudentId);
+      ev.registered = Math.max(0, (ev.registered || 1) - 1);
+      if (ev.status === 'full' && ev.registered < ev.capacity) ev.status = 'upcoming';
+      setLocal(STORAGE_KEYS.events, list);
+    }
+
+    return { success: true };
+  }
 }
 
 // --- Announcements API ---
