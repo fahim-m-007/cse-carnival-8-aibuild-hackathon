@@ -9,6 +9,7 @@ import AssignmentSection from './components/AssignmentSection';
 import Modal from './components/Modal';
 import ChatDrawer from './components/ChatDrawer';
 import AuthPage from './components/AuthPage';
+import DashboardSection from './components/DashboardSection';
 import { getCurrentUser, logoutUser } from './services/auth';
 import {
   fetchSchedules, createSchedule, updateSchedule, deleteSchedule,
@@ -23,7 +24,7 @@ import { Bot } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
-  const [activeTab, setActiveTab] = useState('schedules');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isChatOpen, setIsChatOpen] = useState(true);
 
   // 5 Systems State
@@ -264,6 +265,20 @@ export default function App() {
             counts={counts}
             onOpenAddModal={handleOpenAddModal}
           />
+
+          {activeTab === 'dashboard' && (
+            <DashboardSection
+              currentUser={currentUser}
+              schedules={schedules}
+              rooms={rooms}
+              events={events}
+              announcements={announcements}
+              assignments={assignments}
+              onNavigate={setActiveTab}
+              onCancelRegistration={handleCancelRegistration}
+              onCancelBooking={handleCancelBooking}
+            />
+          )}
 
           {activeTab === 'schedules' && (
             <ScheduleSection

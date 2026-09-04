@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, DoorOpen, PartyPopper, Bell, FileText, Plus } from 'lucide-react';
+import { LayoutDashboard, Calendar, DoorOpen, PartyPopper, Bell, FileText, Plus } from 'lucide-react';
 import './TabNavigation.css';
 
 export default function TabNavigation({
@@ -9,6 +9,7 @@ export default function TabNavigation({
   onOpenAddModal
 }) {
   const tabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'schedules', label: 'Class Schedule', icon: Calendar, count: counts.schedules, addLabel: 'Add Class' },
     { id: 'rooms', label: 'Rooms & Bookings', icon: DoorOpen, count: counts.rooms, addLabel: 'Add Room' },
     { id: 'events', label: 'Campus Events', icon: PartyPopper, count: counts.events, addLabel: 'Create Event' },
@@ -32,16 +33,20 @@ export default function TabNavigation({
             >
               <Icon size={17} />
               <span>{tab.label}</span>
-              <span className="tab-badge">{tab.count}</span>
+              {tab.count !== undefined && (
+                <span className="tab-badge">{tab.count}</span>
+              )}
             </button>
           );
         })}
       </div>
 
-      <button className="primary-add-btn" onClick={() => onOpenAddModal(activeTab)}>
-        <Plus size={16} />
-        <span>{currentTabObj.addLabel}</span>
-      </button>
+      {currentTabObj.addLabel && (
+        <button className="primary-add-btn" onClick={() => onOpenAddModal(activeTab)}>
+          <Plus size={16} />
+          <span>{currentTabObj.addLabel}</span>
+        </button>
+      )}
     </div>
   );
 }
