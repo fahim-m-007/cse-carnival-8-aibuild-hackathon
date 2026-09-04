@@ -1,0 +1,334 @@
+/* Section Common Styling - Cards, Tables, Badges, Filters */
+.section-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Filter / Search Bar */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: #FFFFFF;
+  padding: 0.9rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.search-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #F8FAFC;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.8rem;
+  flex: 1;
+  max-width: 380px;
+}
+
+.search-input-group input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.search-input-group input:focus {
+  box-shadow: none;
+}
+
+.filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-medium);
+  background: #FFFFFF;
+  color: var(--text-body);
+}
+
+.filter-pill:hover {
+  border-color: var(--aust-green);
+  color: var(--aust-green);
+}
+
+.filter-pill.active {
+  background: var(--aust-green);
+  color: #FFFFFF;
+  border-color: var(--aust-green);
+}
+
+/* Card Grids */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.15rem;
+}
+
+.item-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--aust-green-border);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+}
+
+.card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-title);
+  line-height: 1.3;
+}
+
+.card-subtitle {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+.card-body {
+  font-size: 0.88rem;
+  color: var(--text-body);
+  margin-bottom: 1rem;
+  flex: 1;
+}
+
+.card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.card-meta-row svg {
+  color: var(--aust-green);
+  flex-shrink: 0;
+}
+
+/* Card Action Buttons */
+.card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.btn-card-action {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-body);
+  background: #FFFFFF;
+}
+
+.btn-card-action:hover {
+  background: #F1F5F9;
+  border-color: var(--aust-green);
+  color: var(--aust-green);
+}
+
+.btn-card-action.danger:hover {
+  background: var(--aust-red-light);
+  border-color: var(--aust-red);
+  color: var(--aust-red);
+}
+
+.btn-card-action.primary {
+  background: var(--aust-green);
+  color: #FFFFFF;
+  border-color: var(--aust-green);
+}
+
+.btn-card-action.primary:hover {
+  background: var(--aust-green-dark);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.22rem 0.6rem;
+  border-radius: var(--radius-full);
+}
+
+.badge-green {
+  background: var(--aust-green-light);
+  color: var(--aust-green);
+  border: 1px solid var(--aust-green-border);
+}
+
+.badge-red {
+  background: var(--aust-red-light);
+  color: var(--aust-red);
+  border: 1px solid var(--aust-red-border);
+}
+
+.badge-gold {
+  background: var(--aust-gold-light);
+  color: var(--aust-gold);
+  border: 1px solid var(--aust-gold-border);
+}
+
+.badge-blue {
+  background: var(--aust-blue-light);
+  color: var(--aust-blue);
+  border: 1px solid #BFDBFE;
+}
+
+.badge-purple {
+  background: #F3E8FF;
+  color: #7E22CE;
+  border: 1px solid #E9D5FF;
+}
+
+.badge-gray {
+  background: #F1F5F9;
+  color: #64748B;
+  border: 1px solid var(--border-medium);
+}
+
+/* Equipment Chips */
+.chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.tag-chip {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: #F1F5F9;
+  border: 1px solid var(--border-medium);
+  color: var(--text-body);
+}
+
+/* Capacity Progress Meter */
+.capacity-container {
+  margin: 0.75rem 0;
+}
+
+.capacity-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.progress-track {
+  height: 7px;
+  background: #E2E8F0;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--aust-green);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.progress-bar.full {
+  background: var(--aust-red);
+}
+
+/* Table Style */
+.data-table-container {
+  background: #FFFFFF;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.data-table th {
+  background: #F8FAFC;
+  padding: 0.75rem 1rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.data-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-body);
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background: #FAFCFD;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+  background: #FFFFFF;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-medium);
+}

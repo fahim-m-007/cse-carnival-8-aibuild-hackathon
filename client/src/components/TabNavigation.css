@@ -1,0 +1,72 @@
+/* Tab Navigation Component */
+.tab-navigation-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--border-subtle);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.25rem;
+}
+
+.tab-list {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -0.35rem;
+}
+
+.tab-btn:hover {
+  color: var(--aust-green-dark);
+  background: rgba(0, 135, 61, 0.04);
+}
+
+.tab-btn.active {
+  color: var(--aust-green);
+  border-bottom: 3px solid var(--aust-green);
+  background: var(--aust-green-light);
+}
+
+.tab-badge {
+  font-size: 0.75rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: #E2E8F0;
+  color: var(--text-body);
+  font-weight: 700;
+}
+
+.tab-btn.active .tab-badge {
+  background: var(--aust-green);
+  color: #FFFFFF;
+}
+
+.primary-add-btn {
+  background: var(--aust-green);
+  color: #FFFFFF;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.primary-add-btn:hover {
+  background: var(--aust-green-dark);
+  box-shadow: 0 4px 10px rgba(0, 135, 61, 0.25);
+  transform: translateY(-1px);
+}

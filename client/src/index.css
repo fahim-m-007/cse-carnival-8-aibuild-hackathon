@@ -1,0 +1,117 @@
+/* AUST CampusOS Design System - Pure CSS */
+:root {
+  /* AUST Authentic Brand Colors */
+  --aust-green: #00873D;
+  --aust-green-dark: #00682E;
+  --aust-green-light: #EBF7EE;
+  --aust-green-border: #A3E0BA;
+
+  --aust-red: #DC2626;
+  --aust-red-dark: #B91C1C;
+  --aust-red-light: #FEF2F2;
+  --aust-red-border: #FECACA;
+
+  --aust-gold: #D97706;
+  --aust-gold-light: #FFFBEB;
+  --aust-gold-border: #FDE68A;
+
+  --aust-blue: #2563EB;
+  --aust-blue-light: #EFF6FF;
+
+  /* Surfaces & Backgrounds */
+  --bg-app: #F4F6F9;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FAFCFD;
+  --bg-sidebar: #0E1626;
+  --bg-header: #0C1E14; /* Deep Forest Black */
+
+  /* Text & Borders */
+  --text-title: #0F172A;
+  --text-body: #334155;
+  --text-muted: #64748B;
+  --text-light: #F8FAFC;
+  --border-subtle: #E2E8F0;
+  --border-medium: #CBD5E1;
+
+  /* Elevations */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+
+  /* Fonts */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #E2E8F0;
+}
+::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--aust-green);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all 0.15s ease-in-out;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 0.92rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  padding: 0.55rem 0.8rem;
+  outline: none;
+  background: #FFFFFF;
+  color: var(--text-title);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--aust-green);
+  box-shadow: 0 0 0 3px rgba(0, 135, 61, 0.15);
+}
+
+a {
+  color: var(--aust-green);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
